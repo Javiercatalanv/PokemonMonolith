@@ -8,7 +8,7 @@ de tipos) sobre lo almacenado.
 PokéAPI  ──>  seeder/     descarga + carga (script, sincrono)
                   │
                   v
-             PostgreSQL
+     PostgreSQL (en Docker)
                   │
                   v
                app/       API de lectura + algoritmos (async)
@@ -32,6 +32,7 @@ los `1.0` para que consultar una efectividad sea un JOIN directo, sin asumir def
 
 ```
 .
+├── docker-compose.yml          # PostgreSQL
 ├── seeder/                     # ingesta (sincrono: requests + psycopg2)
 │   ├── models.py               # las 3 tablas SQLAlchemy
 │   ├── pokeapi_client.py       # descarga y parseo de la PokéAPI
@@ -57,15 +58,41 @@ definiciones duplicadas.
 
 ## Puesta en marcha
 
-Requiere Python 3.11+ y un PostgreSQL accesible.
+Requiere Python 3.11+ y Docker.
 
 ```bash
-cp .env.example .env          # ajusta las credenciales de PostgreSQL
+cp .env.example .env
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
-### 1. Ingesta
+### 1. Base de datos
+
+PostgreSQL vive en un contenedor; la API y el seeder corren en tu maquina y se
+conectan por `localhost`.
+
+```bash
+docker compose up -d          # levantar
+docker compose ps             # ver el estado
+docker compose logs -f db     # ver los logs
+docker compose down           # parar, conservando los datos
+docker compose down -v        # parar y BORRAR los datos
+```
+
+El contenedor publica el **puerto 5435** del host (el 5432 y los siguientes suelen
+estar ocupados por otros proyectos). Dentro del contenedor sigue siendo el 5432.
+Si quieres otro, cambia `POSTGRES_PORT` en tu `.env` y afecta a las dos cosas a la vez.
+
+Los datos viven en el volumen `pokemon_postgres_data`, asi que sobreviven a un
+`docker compose down`. Solo `-v` los borra.
+
+Una consola SQL contra el contenedor:
+
+```bash
+docker exec -it pokemon_db psql -U postgres -d newmonoliopokemon
+```
+
+### 2. Ingesta
 
 ```bash
 .venv/bin/python -m seeder.seed              # 151 pokemon (primera generacion)
@@ -96,7 +123,7 @@ Detalles:
 - **Tolerante a fallos puntuales.** Un pokemon con formato inesperado se omite con un
   warning en vez de tumbar la ingesta.
 
-### 2. API
+### 3. API
 
 ```bash
 .venv/bin/uvicorn app.main:app --reload
