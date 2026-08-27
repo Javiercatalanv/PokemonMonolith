@@ -1,0 +1,37 @@
+# Solo la base de datos. La API y el seeder se ejecutan en tu maquina y se
+# conectan a este contenedor por localhost:5432.
+#
+#   docker compose up -d      levantar
+#   docker compose logs -f    ver los logs
+#   docker compose down       parar (los datos se conservan)
+#   docker compose down -v    parar y BORRAR los datos
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pokemon_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-newmonoliopokemon}
+      # Acelera la escritura a costa de durabilidad ante un corte de luz.
+      # Es una base de datos de desarrollo que se puede resembrar: merece la pena.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      # 5435 en el host porque 5432-5434 ya los usan otros proyectos de esta
+      # maquina. Dentro del contenedor sigue siendo el 5432 de siempre.
+      - "${POSTGRES_PORT:-5435}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Sin esto, el contenedor aparece "arriba" antes de aceptar conexiones
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-newmonoliopokemon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: pokemon_postgres_data
