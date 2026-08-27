@@ -37,3 +37,19 @@ class MatchupRead(BaseModel):
     defender: str
     multiplier: float
     label: str
+
+
+class GenerationRead(BaseModel):
+    """Una generacion y cuantos de sus pokemon hay cargados ahora mismo.
+
+    `loaded` deja que el frontend desactive las generaciones que el seeder
+    todavia no ha traido, en vez de ofrecer un filtro que no devuelve nada.
+    """
+
+    number: int
+    name: str
+    region: str
+    first_id: int
+    last_id: int
+    total_species: int
+    loaded: int

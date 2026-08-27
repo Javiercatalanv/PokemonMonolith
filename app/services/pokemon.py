@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.models import Pokemon
 from app.repositories.pokemon import PokemonRepository, TypeRepository
-from app.schemas.pokemon import MatchupRead
+from app.schemas.pokemon import GenerationRead, MatchupRead
 from app.services.algorithms import (
+    GENERATIONS,
     combined_effectiveness,
     compute_power_score,
     effectiveness_label,
+    generation_range,
     percentile,
     rank_by_score,
 )
@@ -37,10 +39,34 @@ class PokemonService:
         *,
         limit: int = 50,
         offset: int = 0,
+        generation: int | None = None,
     ) -> tuple[Sequence[Pokemon], int]:
-        items = await self.repo.list(limit=limit, offset=offset)
-        total = await self.repo.count()
+        if generation is None:
+            return await self.repo.list(limit=limit, offset=offset), await self.repo.count()
+
+        try:
+            first_id, last_id = generation_range(generation)
+        except ValueError as exc:
+            raise NotFoundError(str(exc)) from exc
+
+        items = await self.repo.list_by_id_range(first_id, last_id, limit=limit, offset=offset)
+        total = await self.repo.count_by_id_range(first_id, last_id)
         return items, total
+
+    async def generations(self) -> list[GenerationRead]:
+        """Las 9 generaciones, con cuantos pokemon de cada una hay cargados."""
+        return [
+            GenerationRead(
+                number=generation.number,
+                name=generation.name,
+                region=generation.region,
+                first_id=generation.first_id,
+                last_id=generation.last_id,
+                total_species=generation.total_species,
+                loaded=await self.repo.count_by_id_range(generation.first_id, generation.last_id),
+            )
+            for generation in GENERATIONS
+        ]
 
     async def list_by_type(self, type_name: str, limit: int = 50) -> Sequence[Pokemon]:
         if await self.types.get_by_name(type_name) is None:
