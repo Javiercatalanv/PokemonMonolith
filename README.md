@@ -95,11 +95,34 @@ docker exec -it pokemon_db psql -U postgres -d newmonoliopokemon
 ### 2. Ingesta
 
 ```bash
-.venv/bin/python -m seeder.seed              # 151 pokemon (primera generacion)
-.venv/bin/python -m seeder.seed --limit 386  # hasta la tercera generacion
-.venv/bin/python -m seeder.seed --drop       # recrea las tablas desde cero
-.venv/bin/python -m seeder.seed -v           # logging en DEBUG
+.venv/bin/python -m seeder.seed               # 151 pokemon (generacion 1)
+.venv/bin/python -m seeder.seed --limit 1025  # las 9 generaciones (~4 min)
+.venv/bin/python -m seeder.seed --drop        # recrea las tablas desde cero
+.venv/bin/python -m seeder.seed -v            # logging en DEBUG
 ```
+
+#### Generaciones
+
+`--limit` corta por la Pokedex nacional, y cada generacion es un tramo contiguo de
+ella, asi que el limite decide hasta donde llegas:
+
+| Gen | Region | Ids | Especies | `--limit` |
+|---|---|---|---|---|
+| 1 | Kanto | 1 – 151 | 151 | `151` |
+| 2 | Johto | 152 – 251 | 100 | `251` |
+| 3 | Hoenn | 252 – 386 | 135 | `386` |
+| 4 | Sinnoh | 387 – 493 | 107 | `493` |
+| 5 | Unova | 494 – 649 | 156 | `649` |
+| 6 | Kalos | 650 – 721 | 72 | `721` |
+| 7 | Alola | 722 – 809 | 88 | `809` |
+| 8 | Galar | 810 – 905 | 96 | `905` |
+| 9 | Paldea | 906 – 1025 | 120 | `1025` |
+
+**No pases de 1025.** A partir de ahi la PokeAPI devuelve formas alternativas con
+ids 10001+ (`deoxys-attack`, `charizard-mega-x`...), que no son especies nuevas.
+
+Como la ingesta es idempotente, puedes ampliar cuando quieras: lanzarlo con
+`--limit 1025` sobre los 151 que ya tienes completa el resto sin duplicar nada.
 
 El script crea las tablas si no existen, así que es también el inicializador de la BD.
 
@@ -137,7 +160,8 @@ Documentación interactiva en http://localhost:8000/docs
 |---|---|---|
 | GET | `/api/v1/health` | Liveness |
 | GET | `/api/v1/health/ready` | Readiness (comprueba la BD) |
-| GET | `/api/v1/pokemon` | Listado paginado |
+| GET | `/api/v1/generations` | Las 9 generaciones y cuantos hay cargados de cada una |
+| GET | `/api/v1/pokemon` | Listado paginado, filtrable con `?generation=N` |
 | GET | `/api/v1/pokemon/top` | Ranking por puntuación combinada de stats |
 | GET | `/api/v1/pokemon/by-type/{type}` | Pokémon de un tipo (primario o secundario) |
 | GET | `/api/v1/pokemon/{id}` | Detalle con ambos tipos y `stat_total` |
@@ -146,6 +170,22 @@ Documentación interactiva en http://localhost:8000/docs
 
 El matchup multiplica los dos tipos del defensor, como en el juego: fuego contra
 planta/veneno es `2.0 × 1.0 = 2.0`; contra planta/acero, `2.0 × 2.0 = 4.0`.
+
+### Selector de generacion
+
+`GET /api/v1/generations` devuelve el catalogo con `loaded`, cuantos pokemon de esa
+generacion hay ahora mismo en la base de datos:
+
+```json
+[{"number": 1, "region": "kanto", "first_id": 1, "last_id": 151,
+  "total_species": 151, "loaded": 151},
+ {"number": 4, "region": "sinnoh", "first_id": 387, "last_id": 493,
+  "total_species": 107, "loaded": 0}]
+```
+
+Asi el frontend puede desactivar las generaciones que el seeder aun no ha traido en
+vez de ofrecer un filtro que devuelve una lista vacia. Filtrar es
+`GET /api/v1/pokemon?generation=2`.
 
 ## Dónde va cada cosa
 
