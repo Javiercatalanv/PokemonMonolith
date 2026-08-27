@@ -3,9 +3,11 @@
 import pytest
 
 from app.services.algorithms import (
+    GENERATIONS,
     combined_effectiveness,
     compute_power_score,
     effectiveness_label,
+    generation_range,
     percentile,
     rank_by_score,
 )
@@ -50,3 +52,28 @@ def test_rank_by_score() -> None:
 def test_percentile() -> None:
     assert percentile([10.0, 20.0, 30.0, 40.0], 30.0) == 50.0
     assert percentile([], 10.0) == 0.0
+
+
+# --- Generaciones ---
+
+
+def test_generation_range() -> None:
+    assert generation_range(1) == (1, 151)
+    assert generation_range(2) == (152, 251)
+    assert generation_range(9) == (906, 1025)
+
+
+def test_unknown_generation_raises() -> None:
+    with pytest.raises(ValueError, match="No existe la generacion 10"):
+        generation_range(10)
+
+
+def test_generations_are_contiguous_and_cover_the_national_dex() -> None:
+    """Sin huecos ni solapes: cada generacion empieza donde acaba la anterior."""
+    assert GENERATIONS[0].first_id == 1
+    assert GENERATIONS[-1].last_id == 1025
+
+    for previous, current in zip(GENERATIONS[:-1], GENERATIONS[1:], strict=True):
+        assert current.first_id == previous.last_id + 1
+
+    assert sum(gen.total_species for gen in GENERATIONS) == 1025
