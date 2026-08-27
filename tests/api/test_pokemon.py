@@ -3,9 +3,9 @@ from httpx import AsyncClient
 
 async def test_list_returns_seeded_data(client: AsyncClient) -> None:
     body = (await client.get("/pokemon")).json()
-    assert body["total"] == 3
+    assert body["total"] == 5
     names = {item["name"] for item in body["items"]}
-    assert names == {"bulbasaur", "charmander", "squirtle"}
+    assert names == {"bulbasaur", "charmander", "squirtle", "chikorita", "cyndaquil"}
 
 
 async def test_detail_includes_both_types_and_stat_total(client: AsyncClient) -> None:
@@ -69,3 +69,62 @@ async def test_get_missing_returns_404(client: AsyncClient) -> None:
     response = await client.get("/pokemon/9999")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+# --- Filtro por generacion ---
+
+
+async def test_filter_by_generation(client: AsyncClient) -> None:
+    gen1 = (await client.get("/pokemon", params={"generation": 1})).json()
+    assert gen1["total"] == 3
+    assert {item["name"] for item in gen1["items"]} == {
+        "bulbasaur",
+        "charmander",
+        "squirtle",
+    }
+
+    gen2 = (await client.get("/pokemon", params={"generation": 2})).json()
+    assert gen2["total"] == 2
+    assert {item["name"] for item in gen2["items"]} == {"chikorita", "cyndaquil"}
+
+
+async def test_empty_generation_returns_empty_page(client: AsyncClient) -> None:
+    """Una generacion que el seeder aun no ha traido no es un error, es una pagina vacia."""
+    body = (await client.get("/pokemon", params={"generation": 9})).json()
+    assert body["total"] == 0
+    assert body["items"] == []
+
+
+async def test_generation_filter_respects_pagination(client: AsyncClient) -> None:
+    body = (await client.get("/pokemon", params={"generation": 1, "limit": 2})).json()
+    assert body["total"] == 3  # el total es el de la generacion, no el de la pagina
+    assert len(body["items"]) == 2
+
+
+async def test_generation_out_of_range_is_rejected(client: AsyncClient) -> None:
+    assert (await client.get("/pokemon", params={"generation": 0})).status_code == 422
+    assert (await client.get("/pokemon", params={"generation": 10})).status_code == 422
+
+
+# --- Catalogo de generaciones ---
+
+
+async def test_generations_catalog(client: AsyncClient) -> None:
+    body = (await client.get("/generations")).json()
+    assert len(body) == 9
+
+    first = body[0]
+    assert first["number"] == 1
+    assert first["region"] == "kanto"
+    assert (first["first_id"], first["last_id"]) == (1, 151)
+    assert first["total_species"] == 151
+
+
+async def test_generations_report_what_is_loaded(client: AsyncClient) -> None:
+    """El frontend usa `loaded` para desactivar las generaciones sin datos."""
+    body = (await client.get("/generations")).json()
+    loaded = {gen["number"]: gen["loaded"] for gen in body}
+    assert loaded[1] == 3
+    assert loaded[2] == 2
+    assert sum(loaded.values()) == 5
+    assert loaded[9] == 0

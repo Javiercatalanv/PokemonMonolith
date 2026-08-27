@@ -1,8 +1,8 @@
 """Lectura de los datos cargados por el seeder."""
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.deps import PaginationDep, PokemonServiceDep
 from app.schemas.common import ErrorResponse, Page
@@ -19,8 +19,16 @@ _NOT_FOUND: dict[int | str, dict[str, Any]] = {
 async def list_pokemon(
     service: PokemonServiceDep,
     pagination: PaginationDep,
+    generation: Annotated[
+        int | None,
+        Query(ge=1, le=9, description="Filtrar por generacion (1-9)"),
+    ] = None,
 ) -> Page[PokemonRead]:
-    items, total = await service.list(limit=pagination.limit, offset=pagination.offset)
+    items, total = await service.list(
+        limit=pagination.limit,
+        offset=pagination.offset,
+        generation=generation,
+    )
     return Page[PokemonRead](
         items=[PokemonRead.model_validate(item) for item in items],
         total=total,

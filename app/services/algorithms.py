@@ -5,9 +5,47 @@ testear y de reutilizar desde cualquier servicio.
 """
 
 from collections.abc import Iterable, Sequence
+from typing import NamedTuple
 
 # Los stats base se mueven en [1, 255]
 _STAT_MAX = 255
+
+
+class Generation(NamedTuple):
+    number: int
+    name: str
+    region: str
+    first_id: int
+    last_id: int
+
+    @property
+    def total_species(self) -> int:
+        return self.last_id - self.first_id + 1
+
+
+# Cada generacion es un tramo contiguo de la Pokedex nacional, y el `id` de la tabla
+# `pokemon` ES ese numero. Por eso filtrar por generacion es un BETWEEN sobre la clave
+# primaria, sin necesidad de una columna extra.
+GENERATIONS: tuple[Generation, ...] = (
+    Generation(1, "generation-i", "kanto", 1, 151),
+    Generation(2, "generation-ii", "johto", 152, 251),
+    Generation(3, "generation-iii", "hoenn", 252, 386),
+    Generation(4, "generation-iv", "sinnoh", 387, 493),
+    Generation(5, "generation-v", "unova", 494, 649),
+    Generation(6, "generation-vi", "kalos", 650, 721),
+    Generation(7, "generation-vii", "alola", 722, 809),
+    Generation(8, "generation-viii", "galar", 810, 905),
+    Generation(9, "generation-ix", "paldea", 906, 1025),
+)
+
+
+def generation_range(number: int) -> tuple[int, int]:
+    """Primer y ultimo id de la Pokedex nacional de una generacion."""
+    for generation in GENERATIONS:
+        if generation.number == number:
+            return generation.first_id, generation.last_id
+    raise ValueError(f"No existe la generacion {number}")
+
 
 # Peso de cada stat en la puntuacion combinada. Ajusta a tu criterio.
 _WEIGHTS = {

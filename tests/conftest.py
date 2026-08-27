@@ -86,6 +86,31 @@ async def _seed(session: AsyncSession) -> None:
                 sp_defense=64,
                 speed=43,
             ),
+            # Generacion 2 (ids 152-251), para poder probar el filtro por generacion
+            Pokemon(
+                id=152,
+                name="chikorita",
+                type1_id=TYPES["grass"],
+                type2_id=None,
+                hp=45,
+                attack=49,
+                defense=65,
+                sp_attack=49,
+                sp_defense=65,
+                speed=45,
+            ),
+            Pokemon(
+                id=155,
+                name="cyndaquil",
+                type1_id=TYPES["fire"],
+                type2_id=None,
+                hp=39,
+                attack=52,
+                defense=43,
+                sp_attack=60,
+                sp_defense=50,
+                speed=65,
+            ),
         ]
     )
     await session.flush()
