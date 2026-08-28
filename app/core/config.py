@@ -24,7 +24,11 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     # NoDecode desactiva el parseo JSON del .env para que lo haga el validador de abajo
-    CORS_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://localhost:4200",
+        "http://localhost:5173",
+    ]
 
     # --- Base de datos ---
     POSTGRES_HOST: str = "localhost"

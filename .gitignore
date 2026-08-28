@@ -6,10 +6,12 @@ __pycache__/
 build/
 dist/
 
-# Entornos
+# Entornos y dependencias
 .venv/
 venv/
 env/
+node_modules/
+dist/
 
 # Configuracion local
 .env
