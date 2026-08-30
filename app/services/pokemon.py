@@ -13,12 +13,20 @@ from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import InsufficientDataError, NotFoundError
 from app.models import Pokemon
 from app.repositories.pokemon import PokemonRepository, TypeRepository
-from app.schemas.pokemon import GenerationRead, MatchupRead
+from app.schemas.pokemon import (
+    CounterPickRead,
+    CounterTeamRead,
+    GenerationRead,
+    MatchupRead,
+    PokemonRead,
+)
 from app.services.algorithms import (
     GENERATIONS,
+    Contender,
+    assign_counters,
     combined_effectiveness,
     compute_power_score,
     effectiveness_label,
@@ -26,6 +34,10 @@ from app.services.algorithms import (
     percentile,
     rank_by_score,
 )
+
+# Cuantos pokemon se traen a memoria para los calculos que necesitan verlos todos
+# (ranking, percentil, contraequipo). Con la Pokedex completa son 1025.
+_MAX_SCAN = 10_000
 
 
 class PokemonService:
@@ -90,13 +102,79 @@ class PokemonService:
 
     async def top_by_power(self, limit: int = 10) -> list[tuple[str, float]]:
         """Ranking calculado en memoria a partir de los stats guardados."""
-        items = await self.repo.list(limit=10_000)
+        items = await self.repo.list(limit=_MAX_SCAN)
         return rank_by_score(((item.name, self.power_score(item)) for item in items), top=limit)
 
     async def power_percentile(self, pokemon_id: int) -> float:
         pokemon = await self.get(pokemon_id)
-        items = await self.repo.list(limit=10_000)
+        items = await self.repo.list(limit=_MAX_SCAN)
         return percentile([self.power_score(item) for item in items], self.power_score(pokemon))
+
+    async def resolve(self, reference: str) -> Pokemon:
+        """Busca un pokemon por numero de Pokedex o por nombre, indistintamente."""
+        reference = reference.strip()
+        if reference.isdigit():
+            return await self.get(int(reference))
+
+        pokemon = await self.repo.get_by_name(reference.lower())
+        if pokemon is None:
+            raise NotFoundError(f"No existe el pokemon '{reference}'")
+        return pokemon
+
+    def _contender(self, pokemon: Pokemon) -> Contender:
+        """Lo reduce a lo que el emparejamiento necesita: sus tipos y su potencia."""
+        type_ids = (pokemon.type1_id, pokemon.type2_id) if pokemon.type2_id else (pokemon.type1_id,)
+        return Contender(
+            id=pokemon.id,
+            name=pokemon.name,
+            type_ids=type_ids,
+            power=self.power_score(pokemon),
+        )
+
+    async def counter_team(
+        self,
+        references: Sequence[str],
+        *,
+        exclude_team: bool = False,
+    ) -> CounterTeamRead:
+        """Un equipo que bate al enviado, emparejando cada rival con su propio contra.
+
+        Solo se miran los tipos: quien pega mas fuerte y quien encaja menos. Los stats
+        unicamente desempatan entre candidatos con la misma ventaja de tipo.
+        """
+        team = [await self.resolve(reference) for reference in references]
+
+        candidates = list(await self.repo.list(limit=_MAX_SCAN))
+        if exclude_team:
+            on_team = {pokemon.id for pokemon in team}
+            candidates = [pokemon for pokemon in candidates if pokemon.id not in on_team]
+
+        matrix = await self.types.effectiveness_matrix()
+        try:
+            picks = assign_counters(
+                matrix,
+                [self._contender(pokemon) for pokemon in team],
+                [self._contender(pokemon) for pokemon in candidates],
+            )
+        except ValueError as exc:
+            raise InsufficientDataError(str(exc)) from exc
+
+        by_id = {pokemon.id: pokemon for pokemon in candidates}
+        return CounterTeamRead(
+            total_advantage=sum(pick.advantage for pick in picks),
+            picks=[
+                CounterPickRead(
+                    # `picks` viene en el mismo orden que `team`
+                    enemy=PokemonRead.model_validate(enemy),
+                    counter=PokemonRead.model_validate(by_id[pick.counter.id]),
+                    advantage=pick.advantage,
+                    offense_multiplier=pick.offense,
+                    incoming_multiplier=pick.incoming,
+                    label=effectiveness_label(pick.offense),
+                )
+                for enemy, pick in zip(team, picks, strict=True)
+            ],
+        )
 
     async def matchup(self, attacker_type: str, pokemon_id: int) -> MatchupRead:
         """Cuanto dano hace un tipo atacante contra un pokemon concreto."""

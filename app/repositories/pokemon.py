@@ -58,6 +58,22 @@ class TypeRepository(BaseRepository[Type]):
         stmt = select(Type).where(Type.name == name)
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def effectiveness_matrix(self) -> dict[tuple[int, int], float]:
+        """La matriz 18x18 entera, indexada por (tipo atacante, tipo defensor).
+
+        Para contrarrestar un equipo hacen falta las dos direcciones de cada cruce, asi
+        que sale mas barato traerse las 324 filas de golpe que consultarlas una a una.
+        Se piden solo las tres columnas: la entidad `TypeEffectiveness` arrastraria los
+        dos `Type` que carga con `lazy="joined"`.
+        """
+        stmt = select(
+            TypeEffectiveness.attacker_id,
+            TypeEffectiveness.defender_id,
+            TypeEffectiveness.damage_multiplier,
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {(attacker, defender): multiplier for attacker, defender, multiplier in rows}
+
     async def effectiveness_against(self, attacker_id: int, defender_ids: list[int]) -> list[float]:
         """Multiplicadores de un tipo atacante contra uno o dos tipos defensores."""
         stmt = select(TypeEffectiveness.damage_multiplier).where(
