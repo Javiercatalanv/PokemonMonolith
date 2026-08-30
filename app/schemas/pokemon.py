@@ -1,6 +1,6 @@
 """Contratos de salida de la API. Solo lectura: los datos entran por el seeder."""
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class TypeRead(BaseModel):
@@ -37,6 +37,26 @@ class MatchupRead(BaseModel):
     defender: str
     multiplier: float
     label: str
+
+
+class CounterPickRead(BaseModel):
+    """Un rival del equipo y el pokemon elegido para frenarlo."""
+
+    enemy: PokemonRead
+    counter: PokemonRead
+    advantage: int = Field(
+        description="Escalones log2 de ventaja del contra sobre el rival. Rango [-5, 5]",
+    )
+    offense_multiplier: float = Field(description="Dano que el contra le hace al rival")
+    incoming_multiplier: float = Field(description="Dano que el rival le hace al contra")
+    label: str
+
+
+class CounterTeamRead(BaseModel):
+    """Equipo propuesto para batir al equipo enviado, mirando solo los tipos."""
+
+    total_advantage: int = Field(description="Suma de las ventajas, lo que maximiza el algoritmo")
+    picks: list[CounterPickRead]
 
 
 class GenerationRead(BaseModel):
