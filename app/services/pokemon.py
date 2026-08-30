@@ -4,6 +4,11 @@ Esta capa no descarga nada de la PokeAPI: de eso se encarga `seeder/`. Aqui solo
 se lee de la base de datos y se aplican los algoritmos.
 """
 
+# Imprescindible: el metodo `list` de esta clase tapa al `list` incorporado dentro del
+# cuerpo de la clase, asi que anotaciones como `-> list[GenerationRead]` intentarian
+# indexar la funcion. Con las anotaciones diferidas no se evaluan al definir el metodo.
+from __future__ import annotations
+
 from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
