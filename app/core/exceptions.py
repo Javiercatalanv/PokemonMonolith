@@ -45,6 +45,14 @@ class NotFoundError(AppError):
     message = "Recurso no encontrado"
 
 
+class InsufficientDataError(AppError):
+    """La peticion es valida, pero el seeder no ha cargado datos suficientes."""
+
+    status_code = status.HTTP_409_CONFLICT
+    code = "insufficient_data"
+    message = "No hay suficientes pokemon cargados para responder"
+
+
 def _error_body(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "details": details or {}}}
 
