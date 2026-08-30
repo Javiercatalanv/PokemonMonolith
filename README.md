@@ -39,7 +39,7 @@ los `1.0` para que consultar una efectividad sea un JOIN directo, sin asumir def
 │   └── seed.py                 # script ejecutable que orquesta todo
 ├── app/                        # API (async: FastAPI + asyncpg)
 │   ├── main.py
-│   ├── api/v1/endpoints/       # health.py, pokemon.py
+│   ├── api/v1/endpoints/       # health.py, pokemon.py, generations.py, team.py
 │   ├── core/                   # config.py, logging.py, exceptions.py
 │   ├── db/                     # base.py (Base declarativa), session.py
 │   ├── models/__init__.py      # reexporta las tablas de seeder/models.py
@@ -167,9 +167,48 @@ Documentación interactiva en http://localhost:8000/docs
 | GET | `/api/v1/pokemon/{id}` | Detalle con ambos tipos y `stat_total` |
 | GET | `/api/v1/pokemon/{id}/percentile` | Percentil de su puntuación |
 | GET | `/api/v1/pokemon/{id}/matchup/{tipo}` | Efectividad de un tipo atacante contra él |
+| GET | `/api/v1/team/counters` | Equipo que vence al tuyo, mirando solo los tipos |
 
 El matchup multiplica los dos tipos del defensor, como en el juego: fuego contra
 planta/veneno es `2.0 × 1.0 = 2.0`; contra planta/acero, `2.0 × 2.0 = 4.0`.
+
+### Contraequipo
+
+`GET /api/v1/team/counters` recibe hasta 6 pokémon y devuelve **un rival distinto para
+cada uno**, elegido para ganarle lo más fácil posible. Solo se miran los tipos: no hay
+ataques ni movesets de por medio.
+
+```bash
+curl "localhost:8000/api/v1/team/counters?team=venusaur&team=blastoise&team=charizard&team=25&team=snorlax&team=gengar"
+```
+
+Cada miembro se acepta por **nombre o por número de Pokédex**, indistintamente. Con
+`&exclude_team=true` se impide que la propuesta incluya a alguien de tu propio equipo.
+
+```json
+{"total_advantage": 14,
+ "picks": [{"enemy": {"name": "venusaur", ...},
+            "counter": {"name": "charizard", ...},
+            "advantage": 3, "offense_multiplier": 4.0,
+            "incoming_multiplier": 0.5, "label": "muy eficaz"}]}
+```
+
+Cómo se decide, en tres reglas:
+
+1. **Cada pokémon pega con el mejor de sus dos tipos**, que es lo más cerca que se puede
+   estar de "sin mirar los ataques". Los tipos del defensor se multiplican entre sí.
+2. **`advantage` mide el cruce en escalones log₂**: lo que reparte menos lo que encaja.
+   Pegar x4 y recibir x1 vale `2 - 0 = 2`, igual que pegar x2 y recibir x0.5. Una
+   inmunidad (x0) cuenta como tres escalones. El rango es `[-5, 5]` y siempre es entero.
+3. **Se maximiza el total del equipo, no cada pareja por separado.** A veces conviene
+   ceder el mejor contra de un rival a otro que no tiene alternativa. El óptimo es
+   exacto (programación dinámica sobre los 64 subconjuntos del equipo), no codicioso.
+
+Los stats base solo **rompen empates**: entre dos candidatos con la misma ventaja de
+tipo gana el de mayor puntuación, para que no salga un magikarp como «mejor contra».
+
+Si en la base de datos hay menos pokémon que miembros en el equipo, responde `409
+insufficient_data`: hace falta pasar el seeder con un `--limit` mayor.
 
 ### Selector de generacion
 
@@ -194,6 +233,8 @@ vez de ofrecer un filtro que devuelve una lista vacia. Filtrar es
 | Cambiar de API de origen | `seeder/pokeapi_client.py::_parse_pokemon` |
 | Ajustar el retardo o los reintentos | `seeder/pokeapi_client.py` (`REQUEST_DELAY`) |
 | Añadir un algoritmo | `app/services/algorithms.py` — funciones puras |
+| Cambiar cómo se puntúa un cruce de tipos | `app/services/algorithms.py::type_advantage` |
+| Cambiar cómo se reparten los contras | `app/services/algorithms.py::assign_counters` |
 | Una consulta SQL nueva | `app/repositories/pokemon.py` |
 | Una columna nueva | `seeder/models.py` + `app/schemas/pokemon.py` |
 
