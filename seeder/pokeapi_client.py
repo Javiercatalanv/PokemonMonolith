@@ -54,6 +54,7 @@ class PokemonData:
     sp_attack: int
     sp_defense: int
     speed: int
+    sprite_url: str | None = None
 
 
 class PokeAPIClient:
@@ -158,6 +159,14 @@ class PokeAPIClient:
         """
         stats = {entry["stat"]["name"]: int(entry["base_stat"]) for entry in payload["stats"]}
         types = sorted(payload["types"], key=lambda entry: entry["slot"])
+        sprites = payload.get("sprites") or {}
+        other = sprites.get("other") or {} if isinstance(sprites, dict) else {}
+        official = other.get("official-artwork") or {} if isinstance(other, dict) else {}
+        sprite_url = (
+            official.get("front_default") or sprites.get("front_default")
+            if isinstance(sprites, dict)
+            else None
+        )
 
         return PokemonData(
             id=int(payload["id"]),
@@ -170,4 +179,5 @@ class PokeAPIClient:
             sp_attack=stats["special-attack"],
             sp_defense=stats["special-defense"],
             speed=stats["speed"],
+            sprite_url=sprite_url,
         )
