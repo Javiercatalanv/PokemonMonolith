@@ -85,6 +85,22 @@ class PokemonService:
             for generation in GENERATIONS
         ]
 
+    async def search(self, query: str, *, limit: int = 10) -> Sequence[Pokemon]:
+        """Sugerencias mientras se escribe: por numero exacto o por nombre parecido.
+
+        Un termino numerico es un numero de Pokedex, no un trozo de nombre, asi que
+        se resuelve como tal en vez de buscar digitos dentro de los nombres.
+        """
+        query = query.strip().lower()
+        if not query:
+            return []
+
+        if query.isdigit():
+            pokemon = await self.repo.get(int(query))
+            return [pokemon] if pokemon is not None else []
+
+        return await self.repo.search_by_name(query, limit=limit)
+
     async def list_by_type(self, type_name: str, limit: int = 50) -> Sequence[Pokemon]:
         if await self.types.get_by_name(type_name) is None:
             raise NotFoundError(f"No existe el tipo '{type_name}'")

@@ -165,6 +165,7 @@ Documentación interactiva en http://localhost:8000/docs
 | GET | `/api/v1/pokemon/top` | Ranking por puntuación combinada de stats |
 | GET | `/api/v1/pokemon/by-type/{type}` | Pokémon de un tipo (primario o secundario) |
 | GET | `/api/v1/pokemon/{id}` | Detalle con ambos tipos y `stat_total` |
+| GET | `/api/v1/pokemon/search` | Sugerencias por nombre parecido o número, para el buscador incremental |
 | GET | `/api/v1/pokemon/{id}/percentile` | Percentil de su puntuación |
 | GET | `/api/v1/pokemon/{id}/matchup/{tipo}` | Efectividad de un tipo atacante contra él |
 | GET | `/api/v1/team/counters` | Equipo que vence al tuyo, mirando solo los tipos |

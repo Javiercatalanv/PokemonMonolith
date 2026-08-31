@@ -675,3 +675,85 @@ select:focus, input:focus {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* Preselector del buscador de Pokemon */
+.typeahead {
+  position: relative;
+}
+
+.typeahead input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.typeahead-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 17rem;
+  overflow-y: auto;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 20px -6px rgb(0 0 0 / 0.18);
+}
+
+.typeahead-option {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  grid-template-areas: "img name id" "img types id";
+  align-items: center;
+  column-gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.typeahead-option.highlighted {
+  background: #eff6ff;
+}
+
+/* Ya esta en el equipo: se muestra, pero se ve que no aporta volver a elegirlo */
+.typeahead-option.disabled {
+  opacity: 0.55;
+}
+
+.typeahead-img {
+  grid-area: img;
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.typeahead-name {
+  grid-area: name;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.typeahead-types {
+  grid-area: types;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.typeahead-id {
+  grid-area: id;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.typeahead-empty {
+  padding: 0.5rem 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
