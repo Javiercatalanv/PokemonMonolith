@@ -194,11 +194,21 @@ h1 {
   border-radius: var(--border-radius);
 }
 
+/* Los 6 huecos, siempre en una sola fila: un equipo se lee de un vistazo.
+   El minmax(0, ...) deja que la columna encoja por debajo de su contenido, que es
+   lo que impide que el sexto salte de linea cuando la tarjeta trae sprite y select. */
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+/* En pantallas estrechas seis columnas dejarian las tarjetas ilegibles */
+@media (max-width: 760px) {
+  .team-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .team-slot {
