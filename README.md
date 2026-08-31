@@ -24,6 +24,7 @@ cuando toca, no una ruta HTTP. La API nunca sale a internet.
 | `types` | `id`, `name` — los 18 tipos canónicos, con el id de la PokéAPI |
 | `type_effectiveness` | `attacker_id`, `defender_id`, `damage_multiplier` — matriz **completa** 18×18 (324 filas) |
 | `pokemon` | `id`, `name`, `type1_id`, `type2_id` (nullable), `hp`, `attack`, `defense`, `sp_attack`, `sp_defense`, `speed` |
+| `pokemon_forms` | `id`, `pokemon_id`, `name`, `label`, y las mismas columnas de tipos y stats que `pokemon` — solo las formas que **cambian el combate** |
 
 `damage_multiplier` toma los valores `0.0` (inmune), `0.5`, `1.0`, `2.0`. Se guardan también
 los `1.0` para que consultar una efectividad sea un JOIN directo, sin asumir defaults.
@@ -98,6 +99,7 @@ docker exec -it pokemon_db psql -U postgres -d newmonoliopokemon
 .venv/bin/python -m seeder.seed               # 151 pokemon (generacion 1)
 .venv/bin/python -m seeder.seed --limit 1025  # las 9 generaciones (~4 min)
 .venv/bin/python -m seeder.seed --drop        # recrea las tablas desde cero
+.venv/bin/python -m seeder.seed --no-forms    # sin megas ni regionales (~330 peticiones menos)
 .venv/bin/python -m seeder.seed -v            # logging en DEBUG
 ```
 
@@ -166,6 +168,7 @@ Documentación interactiva en http://localhost:8000/docs
 | GET | `/api/v1/pokemon/by-type/{type}` | Pokémon de un tipo (primario o secundario) |
 | GET | `/api/v1/pokemon/{id}` | Detalle con ambos tipos y `stat_total` |
 | GET | `/api/v1/pokemon/search` | Sugerencias por nombre parecido o número, para el buscador incremental |
+| GET | `/api/v1/pokemon/{id}/forms` | Formas alternativas que cambian tipos o stats |
 | GET | `/api/v1/pokemon/{id}/percentile` | Percentil de su puntuación |
 | GET | `/api/v1/pokemon/{id}/matchup/{tipo}` | Efectividad de un tipo atacante contra él |
 | GET | `/api/v1/team/counters` | Equipo que vence al tuyo, mirando solo los tipos |
@@ -210,6 +213,39 @@ tipo gana el de mayor puntuación, para que no salga un magikarp como «mejor co
 
 Si en la base de datos hay menos pokémon que miembros en el equipo, responde `409
 insufficient_data`: hace falta pasar el seeder con un `--limit` mayor.
+
+### Formas alternativas
+
+`GET /api/v1/pokemon/{id}/forms` devuelve las megas, primal, regionales y variantes con
+stats propios (`deoxys-attack`, `rotom-heat`, `giratina-origin`). El frontend las ofrece
+en un desplegable dentro de la tarjeta del equipo.
+
+**El criterio no es una lista de nombres.** El seeder compara tipos y stats de cada
+variedad con los de su especie y guarda solo las que difieren. Eso descarta solas las 34
+gigantamax y los disfraces —`charizard-gmax` tiene los mismos 534 de total y los mismos
+fuego/volador que el base—, y hace que una forma nueva en la PokéAPI entre sin tocar código.
+
+Las formas viven en **su propia tabla** a propósito: así ninguna consulta sobre `pokemon`
+puede colarlas por descuido en el catálogo, el ranking, el buscador ni los candidatos del
+contraequipo. Sus columnas se llaman igual que las de `pokemon`, de modo que los algoritmos
+y los schemas sirven para las dos sin ramificar.
+
+El `id` de una forma es el de la PokéAPI (10001 en adelante), así que nunca choca con un
+número de la Pokédex y se puede pedir como cualquier otro pokémon:
+
+```bash
+curl "$API/pokemon/charizard/forms"
+curl "$API/pokemon/10034"                    # charizard-mega-x
+curl "$API/team/counters?team=charizard-mega-x&team=25"
+```
+
+Una forma puede ser rival, pero **el generador solo propone especies base**: no te va a
+contestar con una mega. Y al excluir a los miembros del equipo se excluye la especie
+entera, porque Mega Charizard X y Charizard son el mismo bicho con otra chaqueta.
+
+La **terracristalización** no está: no es una forma sino un cambio del tipo defensivo con
+los stats intactos, así que no aparece en las variedades de la PokéAPI y necesitaría un
+selector de tipo aparte.
 
 ### Selector de generacion
 
