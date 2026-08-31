@@ -38,6 +38,23 @@ async def list_pokemon(
 
 
 @router.get(
+    "/search",
+    response_model=list[PokemonRead],
+    summary="Sugerencias por nombre parecido o por numero de Pokedex",
+)
+async def search_pokemon(
+    service: PokemonServiceDep,
+    q: Annotated[
+        str,
+        Query(min_length=1, max_length=50, description="Parte del nombre, o el numero exacto"),
+    ],
+    limit: Annotated[int, Query(ge=1, le=25, description="Cuantas sugerencias devolver")] = 10,
+) -> list[PokemonRead]:
+    """Alimenta el buscador incremental del frontend. Lista vacia si no hay parecidos."""
+    return [PokemonRead.model_validate(item) for item in await service.search(q, limit=limit)]
+
+
+@router.get(
     "/top",
     summary="Ranking por puntuacion combinada de stats",
     response_model=list[dict[str, float | str]],

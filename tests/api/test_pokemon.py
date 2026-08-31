@@ -71,6 +71,59 @@ async def test_get_missing_returns_404(client: AsyncClient) -> None:
     assert response.json()["error"]["code"] == "not_found"
 
 
+# --- Buscador incremental ---
+
+
+async def test_search_matches_part_of_the_name(client: AsyncClient) -> None:
+    body = (await client.get("/pokemon/search", params={"q": "squi"})).json()
+    assert [item["name"] for item in body] == ["squirtle"]
+
+
+async def test_search_puts_prefix_matches_first(client: AsyncClient) -> None:
+    """squirtle empieza por 's' y bulbasaur solo la contiene, asi que va delante."""
+    body = (await client.get("/pokemon/search", params={"q": "s"})).json()
+    assert [item["name"] for item in body] == ["squirtle", "bulbasaur"]
+
+
+async def test_search_ignores_capitals(client: AsyncClient) -> None:
+    body = (await client.get("/pokemon/search", params={"q": "CHAR"})).json()
+    assert [item["name"] for item in body] == ["charmander"]
+
+
+async def test_search_by_pokedex_number_is_exact(client: AsyncClient) -> None:
+    """Un termino numerico es un numero de Pokedex, no digitos dentro del nombre."""
+    body = (await client.get("/pokemon/search", params={"q": "4"})).json()
+    assert [item["name"] for item in body] == ["charmander"]
+
+
+async def test_search_unknown_number_returns_empty(client: AsyncClient) -> None:
+    assert (await client.get("/pokemon/search", params={"q": "9999"})).json() == []
+
+
+async def test_search_without_matches_returns_empty(client: AsyncClient) -> None:
+    assert (await client.get("/pokemon/search", params={"q": "zzz"})).json() == []
+
+
+async def test_search_respects_the_limit(client: AsyncClient) -> None:
+    body = (await client.get("/pokemon/search", params={"q": "c", "limit": 2})).json()
+    assert len(body) == 2
+
+
+async def test_search_needs_a_term(client: AsyncClient) -> None:
+    response = await client.get("/pokemon/search", params={"q": ""})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+async def test_search_carries_the_data_the_selector_shows(client: AsyncClient) -> None:
+    """La sugerencia se pinta con sprite y tipos, asi que van en la misma respuesta."""
+    suggestion = (await client.get("/pokemon/search", params={"q": "bulba"})).json()[0]
+    assert suggestion["id"] == 1
+    assert suggestion["type1"]["name"] == "grass"
+    assert suggestion["type2"]["name"] == "poison"
+    assert "sprite_url" in suggestion
+
+
 # --- Filtro por generacion ---
 
 
