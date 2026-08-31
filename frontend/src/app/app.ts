@@ -136,13 +136,71 @@ export interface CounterTeamRead {
           <div class="team-builder-controls">
             <div class="form-group" style="max-width: 320px;">
               <label for="quick-add-pokemon">Buscar Pokemon por Nombre o ID:</label>
-              <input
-                type="text"
-                id="quick-add-pokemon"
-                [(ngModel)]="quickAddInput"
-                placeholder="Ej: charizard, 1, squirtle..."
-                (keydown.enter)="addQuickPokemon()"
-              />
+              <!-- Preselector: al escribir se piden sugerencias a /pokemon/search -->
+              <div class="typeahead">
+                <input
+                  type="text"
+                  id="quick-add-pokemon"
+                  autocomplete="off"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  [attr.aria-expanded]="showSuggestions()"
+                  [attr.aria-activedescendant]="highlightedIndex() >= 0 ? 'suggestion-' + highlightedIndex() : null"
+                  [(ngModel)]="quickAddInput"
+                  placeholder="Ej: charizard, 1, squirtle..."
+                  (input)="onSearchInput()"
+                  (focus)="onSearchFocus()"
+                  (blur)="closeSuggestions()"
+                  (keydown.enter)="onSearchEnter(); $event.preventDefault()"
+                  (keydown.arrowdown)="moveHighlight(1); $event.preventDefault()"
+                  (keydown.arrowup)="moveHighlight(-1); $event.preventDefault()"
+                  (keydown.escape)="closeSuggestions()"
+                />
+
+                @if (showSuggestions()) {
+                  <!-- preventDefault en mousedown: el input no pierde el foco al clicar -->
+                  <ul class="typeahead-list" role="listbox" (mousedown)="$event.preventDefault()">
+                    @if (isSearching() && suggestions().length === 0) {
+                      <li class="typeahead-empty">Buscando...</li>
+                    } @else if (suggestions().length === 0) {
+                      <li class="typeahead-empty">Ningun Pokemon se llama asi.</li>
+                    } @else {
+                      @for (p of suggestions(); track p.id; let i = $index) {
+                        <li
+                          [id]="'suggestion-' + i"
+                          role="option"
+                          class="typeahead-option"
+                          [class.highlighted]="highlightedIndex() === i"
+                          [class.disabled]="isAlreadyInTeam(p.id)"
+                          [attr.aria-selected]="highlightedIndex() === i"
+                          (click)="pickSuggestion(p)"
+                          (mouseenter)="highlightedIndex.set(i)"
+                        >
+                          @if (p.sprite_url) {
+                            <img [src]="p.sprite_url" [alt]="p.name" class="typeahead-img" />
+                          } @else {
+                            <span class="typeahead-img"></span>
+                          }
+                          <span class="typeahead-name">{{ capitalize(p.name) }}</span>
+                          <span class="typeahead-types">
+                            <span class="type-badge" [class]="'type-' + p.type1.name">
+                              {{ capitalize(p.type1.name) }}
+                            </span>
+                            @if (p.type2) {
+                              <span class="type-badge" [class]="'type-' + p.type2.name">
+                                {{ capitalize(p.type2.name) }}
+                              </span>
+                            }
+                          </span>
+                          <span class="typeahead-id">
+                            @if (isAlreadyInTeam(p.id)) { Ya esta } @else { #{{ p.id }} }
+                          </span>
+                        </li>
+                      }
+                    }
+                  </ul>
+                }
+              </div>
             </div>
             <div class="form-group btn-group-align">
               <button (click)="addQuickPokemon()" [disabled]="myTeam().length >= 6" class="btn btn-primary">
@@ -648,6 +706,16 @@ export class App implements OnInit {
   teamError = signal<string | null>(null);
   counterResult = signal<CounterTeamRead | null>(null);
 
+  // Preselector del buscador
+  suggestions = signal<PokemonRead[]>([]);
+  showSuggestions = signal(false);
+  highlightedIndex = signal(-1);
+  isSearching = signal(false);
+  private searchTimer?: ReturnType<typeof setTimeout>;
+  // Cada peticion lleva un numero de orden: si una lenta contesta despues de otra
+  // mas reciente, se descarta en vez de pisar las sugerencias buenas.
+  private searchSeq = 0;
+
   ngOnInit(): void {
     this.checkHealth();
     this.loadPokemon();
@@ -855,12 +923,92 @@ export class App implements OnInit {
     this.teamError.set(null);
   }
 
+  // --- PRESELECTOR DEL BUSCADOR ---
+
+  onSearchInput(): void {
+    const term = this.quickAddInput.trim();
+    this.highlightedIndex.set(-1);
+    clearTimeout(this.searchTimer);
+
+    if (!term) {
+      this.searchSeq++; // invalida cualquier peticion en vuelo
+      this.suggestions.set([]);
+      this.showSuggestions.set(false);
+      this.isSearching.set(false);
+      return;
+    }
+
+    this.showSuggestions.set(true);
+    this.isSearching.set(true);
+    // Se espera a que deje de teclear: escribir "charizard" son 9 pulsaciones,
+    // pero solo una consulta.
+    this.searchTimer = setTimeout(() => this.fetchSuggestions(term), 200);
+  }
+
+  onSearchFocus(): void {
+    if (this.quickAddInput.trim() && this.suggestions().length > 0) {
+      this.showSuggestions.set(true);
+    }
+  }
+
+  private async fetchSuggestions(term: string): Promise<void> {
+    const seq = ++this.searchSeq;
+    const params = new HttpParams().set('q', term).set('limit', '8');
+
+    try {
+      const items = await firstValueFrom(
+        this.http.get<PokemonRead[]>(`${this.cleanUrl()}/pokemon/search`, { params })
+      );
+      if (seq !== this.searchSeq) return;
+      this.suggestions.set(items);
+    } catch {
+      if (seq !== this.searchSeq) return;
+      this.suggestions.set([]);
+    } finally {
+      if (seq === this.searchSeq) this.isSearching.set(false);
+    }
+  }
+
+  moveHighlight(delta: number): void {
+    const total = this.suggestions().length;
+    if (!this.showSuggestions() || total === 0) return;
+    // El modulo hace que la lista de vuelta al llegar a los extremos
+    this.highlightedIndex.update((current) => (current + delta + total) % total);
+  }
+
+  pickSuggestion(pokemon: PokemonRead): void {
+    this.addPokemonToTeam(pokemon);
+    this.quickAddInput = '';
+    this.suggestions.set([]);
+    this.closeSuggestions();
+  }
+
+  onSearchEnter(): void {
+    const items = this.suggestions();
+    const index = this.highlightedIndex();
+
+    if (this.showSuggestions() && index >= 0 && index < items.length) {
+      this.pickSuggestion(items[index]);
+      return;
+    }
+    // Sin sugerencia marcada, Enter sigue resolviendo el nombre o id exacto
+    this.addQuickPokemon();
+  }
+
+  closeSuggestions(): void {
+    clearTimeout(this.searchTimer);
+    this.showSuggestions.set(false);
+    this.highlightedIndex.set(-1);
+    this.isSearching.set(false);
+  }
+
   async addQuickPokemon(): Promise<void> {
     const input = this.quickAddInput.trim();
     if (!input) return;
 
     const base = this.cleanUrl();
     this.teamError.set(null);
+    this.closeSuggestions();
 
     try {
       const pokemon = await firstValueFrom(
@@ -868,6 +1016,7 @@ export class App implements OnInit {
       );
       this.addPokemonToTeam(pokemon);
       this.quickAddInput = '';
+      this.suggestions.set([]);
     } catch (err: any) {
       if (err.status === 404) {
         this.teamError.set(`No se encontro el Pokemon '${input}'. Verifica el nombre o numero.`);
