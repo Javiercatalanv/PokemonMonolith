@@ -95,6 +95,7 @@ class Pokemon(Base):
     sp_attack: Mapped[int] = mapped_column(Integer, nullable=False)
     sp_defense: Mapped[int] = mapped_column(Integer, nullable=False)
     speed: Mapped[int] = mapped_column(Integer, nullable=False)
+    sprite_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     type1: Mapped[Type] = relationship(foreign_keys=[type1_id], lazy="joined")
     type2: Mapped[Type | None] = relationship(foreign_keys=[type2_id], lazy="joined")

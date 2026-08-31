@@ -127,6 +127,7 @@ def seed_pokemon(
                 sp_attack=entry.sp_attack,
                 sp_defense=entry.sp_defense,
                 speed=entry.speed,
+                sprite_url=entry.sprite_url,
             )
         )
         saved += 1
