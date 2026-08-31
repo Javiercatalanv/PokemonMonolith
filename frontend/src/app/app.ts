@@ -87,15 +87,8 @@ export interface CounterTeamRead {
   template: `
     <header class="header">
       <div class="container header-content">
-        <div>
-          <h1>Pokemon Monolith - Generador de Counter Team</h1>
-          <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
-        </div>
-        <div class="api-config">
-          <label for="api-url">Base API URL:</label>
-          <input type="text" id="api-url" [(ngModel)]="apiUrl" />
-          <button (click)="checkHealth()" class="btn btn-secondary">Comprobar Estado</button>
-        </div>
+        <h1>Pokemon Monolith - Generador de Counter Team</h1>
+        <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
       </div>
     </header>
 
@@ -693,7 +686,8 @@ export interface CounterTeamRead {
 export class App implements OnInit {
   private http = inject(HttpClient);
 
-  // Configuracion API
+  // Base de la API. Ya no se edita desde la cabecera: para apuntar a otro backend,
+  // se cambia aqui.
   apiUrl = 'http://localhost:8000/api/v1';
 
   // Pestana activa
