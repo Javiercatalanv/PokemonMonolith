@@ -31,6 +31,15 @@ body {
   flex-direction: column;
 }
 
+/* El componente raiz es el unico hijo de body, asi que la columna que empuja el
+   footer al fondo tiene que estar aqui: header, main y footer cuelgan de app-root. */
+app-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -47,10 +56,10 @@ body {
 
 .header-content {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  text-align: center;
+  gap: 0.15rem;
 }
 
 h1 {
@@ -62,25 +71,6 @@ h1 {
 .subtitle {
   font-size: 0.85rem;
   color: var(--text-muted);
-}
-
-.api-config {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.api-config label {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.api-config input {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  width: 240px;
 }
 
 /* Main Layout */
@@ -674,6 +664,7 @@ select:focus, input:focus {
   padding: 1rem 0;
   font-size: 0.8rem;
   color: var(--text-muted);
+  text-align: center;
 }
 
 /* Preselector del buscador de Pokemon */
