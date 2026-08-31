@@ -757,3 +757,35 @@ select:focus, input:focus {
   color: var(--text-muted);
 }
 
+/* Selector de forma dentro de la tarjeta del equipo */
+.form-picker {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text-main);
+}
+
+.form-picker-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Cuanto suben o bajan los stats respecto de la forma normal */
+.stat-delta {
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--success);
+}
+
+.stat-delta.negative {
+  background: var(--danger);
+}

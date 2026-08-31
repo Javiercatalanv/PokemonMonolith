@@ -5,6 +5,6 @@ y se reexportan aqui para que el resto de la app las importe desde un solo sitio
 """
 
 from app.db.base import Base
-from seeder.models import Pokemon, Type, TypeEffectiveness
+from seeder.models import Pokemon, PokemonForm, Type, TypeEffectiveness
 
-__all__ = ["Base", "Pokemon", "Type", "TypeEffectiveness"]
+__all__ = ["Base", "Pokemon", "PokemonForm", "Type", "TypeEffectiveness"]

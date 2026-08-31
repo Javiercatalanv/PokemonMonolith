@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import PaginationDep, PokemonServiceDep
 from app.schemas.common import ErrorResponse, Page
-from app.schemas.pokemon import MatchupRead, PokemonRead
+from app.schemas.pokemon import MatchupRead, PokemonFormRead, PokemonRead
 
 router = APIRouter()
 
@@ -86,6 +86,21 @@ async def pokemon_by_type(
 )
 async def get_pokemon(identifier: str, service: PokemonServiceDep) -> PokemonRead:
     return PokemonRead.model_validate(await service.resolve(identifier))
+
+
+@router.get(
+    "/{identifier}/forms",
+    response_model=list[PokemonFormRead],
+    responses=_NOT_FOUND,
+    summary="Formas alternativas que cambian tipos o stats",
+)
+async def list_forms(identifier: str, service: PokemonServiceDep) -> list[PokemonFormRead]:
+    """Megas, primal, regionales y variantes con stats propios.
+
+    Lista vacia si transformarse no le cambia nada: las gigantamax y los disfraces
+    no se guardan porque dejan tipos y stats intactos.
+    """
+    return [PokemonFormRead.model_validate(form) for form in await service.forms(identifier)]
 
 
 @router.get(

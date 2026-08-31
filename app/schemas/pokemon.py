@@ -31,6 +31,17 @@ class PokemonRead(BaseModel):
         return self.hp + self.attack + self.defense + self.sp_attack + self.sp_defense + self.speed
 
 
+class PokemonFormRead(PokemonRead):
+    """Una forma alternativa: mismos campos que un pokemon, mas de quien es.
+
+    Solo llegan aqui las formas que cambian tipos o stats, asi que cada opcion del
+    desplegable altera de verdad el enfrentamiento.
+    """
+
+    pokemon_id: int = Field(description="Numero de Pokedex de la especie base")
+    label: str = Field(description="Nombre corto para el selector: 'Mega X', 'Alola'")
+
+
 class MatchupRead(BaseModel):
     """Resultado de enfrentar un tipo atacante contra un pokemon."""
 

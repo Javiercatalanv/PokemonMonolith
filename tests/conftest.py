@@ -18,7 +18,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import create_app
-from app.models import Pokemon, Type, TypeEffectiveness
+from app.models import Pokemon, PokemonForm, Type, TypeEffectiveness
 
 # Subconjunto de tipos suficiente para probar la efectividad combinada
 TYPES = {"fire": 10, "water": 11, "grass": 12, "poison": 4}
@@ -112,6 +112,26 @@ async def _seed(session: AsyncSession) -> None:
                 speed=65,
             ),
         ]
+    )
+    await session.flush()
+
+    # Una mega de charmander inventada para los tests: cambia tipos (fire -> fire/water,
+    # que no existe en el juego pero si prueba el doble tipo) y sube los stats.
+    session.add(
+        PokemonForm(
+            id=10004,
+            pokemon_id=4,
+            name="charmander-mega",
+            label="Mega",
+            type1_id=TYPES["fire"],
+            type2_id=TYPES["water"],
+            hp=59,
+            attack=72,
+            defense=63,
+            sp_attack=80,
+            sp_defense=70,
+            speed=85,
+        )
     )
     await session.flush()
 
