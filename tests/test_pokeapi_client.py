@@ -52,3 +52,18 @@ def test_parse_rejects_malformed_payload() -> None:
     del payload["stats"][0]  # falta el hp
     with pytest.raises(KeyError):
         PokeAPIClient._parse_pokemon(payload)
+
+
+def test_parse_extracts_sprite_url() -> None:
+    payload = _payload(
+        sprites={
+            "front_default": "https://img.pokeapi.co/sprite.png",
+            "other": {
+                "official-artwork": {
+                    "front_default": "https://img.pokeapi.co/artwork.png"
+                }
+            },
+        }
+    )
+    data = PokeAPIClient._parse_pokemon(payload)
+    assert data.sprite_url == "https://img.pokeapi.co/artwork.png"

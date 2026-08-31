@@ -23,6 +23,7 @@ class PokemonRead(BaseModel):
     sp_attack: int
     sp_defense: int
     speed: int
+    sprite_url: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
