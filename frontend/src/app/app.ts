@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 export interface TypeRead {
@@ -52,6 +52,20 @@ export interface TopPokemonRead {
   score: number;
 }
 
+export interface CounterPickRead {
+  enemy: PokemonRead;
+  counter: PokemonRead;
+  advantage: number;
+  offense_multiplier: number;
+  incoming_multiplier: number;
+  label: string;
+}
+
+export interface CounterTeamRead {
+  total_advantage: number;
+  picks: CounterPickRead[];
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -60,8 +74,8 @@ export interface TopPokemonRead {
     <header class="header">
       <div class="container header-content">
         <div>
-          <h1>Pokemon Monolith - Panel de Prueba Angular</h1>
-          <p class="subtitle">Interfaz basica en Angular para consumir los endpoints de FastAPI</p>
+          <h1>Pokemon Monolith - Generador de Counter Team</h1>
+          <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
         </div>
         <div class="api-config">
           <label for="api-url">Base API URL:</label>
@@ -88,228 +102,464 @@ export interface TopPokemonRead {
         </div>
       </section>
 
-      <div class="grid-2-col">
-        <!-- Seccion Principal: Listado y Filtros -->
+      <!-- Pestanas Principales -->
+      <nav class="nav-tabs">
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'counter'"
+          (click)="activeTab.set('counter')"
+        >
+          Generador de Counter Team
+        </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'catalog'"
+          (click)="activeTab.set('catalog')"
+        >
+          Catalogo y Analisis Individual
+        </button>
+      </nav>
+
+      <!-- VISTA 1: GENERADOR DE EQUIPO COUNTER -->
+      @if (activeTab() === 'counter') {
         <section class="card">
           <div class="card-header">
-            <h2>Catalogo de Pokemon</h2>
+            <h2>Constructor de Equipo Rival (1 a 6 Pokemon)</h2>
+            <p class="card-description">
+              Ingresa los Pokemon de tu equipo o del rival. El backend analizara la matriz de tipos de 18x18
+              y generara el equipo optimo que maximice la ventaja neta.
+            </p>
           </div>
 
-          <div class="filters-bar">
-            <div class="form-group">
-              <label for="filter-generation">Generacion:</label>
-              <select id="filter-generation" [(ngModel)]="selectedGeneration">
-                <option [ngValue]="null">Todas las generaciones</option>
-                @for (gen of generations(); track gen.number) {
-                  <option [ngValue]="gen.number">
-                    Gen {{ gen.number }} ({{ capitalize(gen.region) }}) - {{ gen.loaded }}/{{ gen.total_species }} cargados
-                  </option>
-                }
-              </select>
+          <!-- Selector rapido para agregar al equipo -->
+          <div class="team-builder-controls">
+            <div class="form-group" style="max-width: 320px;">
+              <label for="quick-add-pokemon">Buscar Pokemon por Nombre o ID:</label>
+              <input
+                type="text"
+                id="quick-add-pokemon"
+                [(ngModel)]="quickAddInput"
+                placeholder="Ej: charizard, 1, squirtle..."
+                (keydown.enter)="addQuickPokemon()"
+              />
             </div>
-
-            <div class="form-group">
-              <label for="filter-type">Filtrar por Tipo:</label>
-              <select id="filter-type" [(ngModel)]="selectedType">
-                <option value="">Todos los tipos</option>
-                @for (t of canonicalTypes; track t) {
-                  <option [value]="t">{{ capitalize(t) }}</option>
-                }
-              </select>
-            </div>
-
             <div class="form-group btn-group-align">
-              <button (click)="applyFilters()" class="btn btn-primary">Aplicar</button>
-              <button (click)="resetFilters()" class="btn btn-secondary">Limpiar</button>
-            </div>
-          </div>
-
-          <!-- Tabla de Pokemon -->
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Nombre</th>
-                  <th>Tipo 1</th>
-                  <th>Tipo 2</th>
-                  <th>Total Stats</th>
-                  <th>Accion</th>
-                </tr>
-              </thead>
-              <tbody>
-                @if (isLoadingPokemon()) {
-                  <tr>
-                    <td colspan="6" class="text-center text-muted">Cargando datos...</td>
-                  </tr>
-                } @else if (pokemonList().length === 0) {
-                  <tr>
-                    <td colspan="6" class="text-center text-muted">No se encontraron Pokemon.</td>
-                  </tr>
-                } @else {
-                  @for (p of pokemonList(); track p.id) {
-                    <tr [class.selected]="selectedPokemon()?.id === p.id" (click)="selectPokemon(p.id)">
-                      <td>#{{ p.id }}</td>
-                      <td><strong>{{ capitalize(p.name) }}</strong></td>
-                      <td>
-                        <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
-                          {{ capitalize(p.type1.name) }}
-                        </span>
-                      </td>
-                      <td>
-                        @if (p.type2) {
-                          <span class="type-badge" [class]="'type-' + p.type2.name.toLowerCase()">
-                            {{ capitalize(p.type2.name) }}
-                          </span>
-                        } @else {
-                          <span class="text-muted">-</span>
-                        }
-                      </td>
-                      <td><strong>{{ p.stat_total }}</strong></td>
-                      <td>
-                        <button (click)="selectPokemon(p.id); $event.stopPropagation()" class="btn btn-sm btn-primary">
-                          Detalles
-                        </button>
-                      </td>
-                    </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Paginacion -->
-          <div class="pagination-bar">
-            <div class="pagination-info">{{ paginationText() }}</div>
-            <div class="pagination-buttons">
-              <button (click)="prevPage()" [disabled]="offset() === 0 || selectedType !== ''" class="btn btn-sm btn-secondary">
-                Anterior
+              <button (click)="addQuickPokemon()" [disabled]="myTeam().length >= 6" class="btn btn-primary">
+                Agregar al Equipo
               </button>
-              <button (click)="nextPage()" [disabled]="offset() + limit() >= totalPokemon() || selectedType !== ''" class="btn btn-sm btn-secondary">
-                Siguiente
+              <button (click)="loadRandomTeam()" [disabled]="pokemonList().length === 0" class="btn btn-secondary">
+                Equipo de Ejemplo
               </button>
             </div>
           </div>
-        </section>
 
-        <!-- Panel Lateral: Detalle, Percentil, Matchup y Top Ranking -->
-        <aside class="sidebar-col">
-          <!-- Detalle de Pokemon -->
-          <section class="card">
-            <div class="card-header">
-              <h2>Detalle de Pokemon</h2>
-            </div>
-            @if (selectedPokemon(); as current) {
-              <div>
-                <div class="flex-between">
-                  <h3>#{{ current.id }} {{ capitalize(current.name) }}</h3>
+          @if (teamError()) {
+            <div class="alert alert-danger">{{ teamError() }}</div>
+          }
+
+          <!-- Grid de Slots del Equipo -->
+          <div class="team-grid">
+            @for (slot of [0, 1, 2, 3, 4, 5]; track slot) {
+              @if (myTeam()[slot]; as p) {
+                <div class="team-slot filled">
+                  <div class="flex-between" style="width: 100%;">
+                    <span class="team-slot-number">Slot {{ slot + 1 }}</span>
+                    <button (click)="removePokemonFromTeam(slot)" class="btn btn-sm btn-danger" title="Quitar">
+                      X
+                    </button>
+                  </div>
                   <div>
-                    <span class="type-badge" [class]="'type-' + current.type1.name.toLowerCase()">
-                      {{ capitalize(current.type1.name) }}
-                    </span>
-                    @if (current.type2) {
-                      <span class="type-badge" [class]="'type-' + current.type2.name.toLowerCase()">
-                        {{ capitalize(current.type2.name) }}
+                    <div class="team-member-name">#{{ p.id }} {{ capitalize(p.name) }}</div>
+                    <div>
+                      <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
+                        {{ capitalize(p.type1.name) }}
                       </span>
-                    }
+                      @if (p.type2) {
+                        <span class="type-badge" [class]="'type-' + p.type2.name.toLowerCase()">
+                          {{ capitalize(p.type2.name) }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+                  <div class="text-muted" style="font-size: 0.75rem;">
+                    Stats: <strong>{{ p.stat_total }}</strong>
                   </div>
                 </div>
-
-                <div class="stats-grid">
-                  <div class="stat-box"><div class="stat-name">HP</div><div class="stat-val">{{ current.hp }}</div></div>
-                  <div class="stat-box"><div class="stat-name">Ataque</div><div class="stat-val">{{ current.attack }}</div></div>
-                  <div class="stat-box"><div class="stat-name">Defensa</div><div class="stat-val">{{ current.defense }}</div></div>
-                  <div class="stat-box"><div class="stat-name">Ataque Sp.</div><div class="stat-val">{{ current.sp_attack }}</div></div>
-                  <div class="stat-box"><div class="stat-name">Defensa Sp.</div><div class="stat-val">{{ current.sp_defense }}</div></div>
-                  <div class="stat-box"><div class="stat-name">Velocidad</div><div class="stat-val">{{ current.speed }}</div></div>
+              } @else {
+                <div class="team-slot">
+                  <span class="team-slot-number">Slot {{ slot + 1 }}</span>
+                  <p class="team-slot-empty">Vacio</p>
                 </div>
-
-                <div class="flex-between">
-                  <strong>Total de Estadisticas:</strong>
-                  <span class="badge badge-neutral">{{ current.stat_total }}</span>
-                </div>
-                <div class="flex-between mt-3">
-                  <strong>Percentil de Poder:</strong>
-                  <span class="badge badge-success">{{ selectedPercentile() }}%</span>
-                </div>
-              </div>
-            } @else {
-              <p class="text-muted text-center">Selecciona un Pokemon de la tabla para ver sus detalles.</p>
+              }
             }
-          </section>
+          </div>
 
-          <!-- Calculadora de Matchup -->
-          <section class="card">
-            <div class="card-header">
-              <h2>Calculadora de Efectividad (Matchup)</h2>
+          <!-- Barra de Acciones del Equipo -->
+          <div class="team-actions-bar">
+            <div>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="excludeMyTeam" />
+                Excluir a los miembros de este equipo como candidatos counter
+              </label>
             </div>
-            <div class="form-group">
-              <label for="matchup-type">Tipo Atacante:</label>
-              <select id="matchup-type" [(ngModel)]="attackerType">
-                @for (t of canonicalTypes; track t) {
-                  <option [value]="t">{{ capitalize(t) }}</option>
+            <div style="display: flex; gap: 0.5rem;">
+              <button (click)="clearTeam()" [disabled]="myTeam().length === 0" class="btn btn-secondary">
+                Limpiar Equipo
+              </button>
+              <button
+                (click)="generateCounterTeam()"
+                [disabled]="myTeam().length === 0 || isGeneratingCounter()"
+                class="btn btn-success"
+                style="font-weight: 700;"
+              >
+                @if (isGeneratingCounter()) {
+                  Calculando Optimo...
+                } @else {
+                  Generar Equipo Counter
                 }
-              </select>
+              </button>
             </div>
-            <button (click)="calculateMatchup()" [disabled]="!selectedPokemon() || isCalculatingMatchup()" class="btn btn-primary btn-block mt-3">
-              Calcular Dano contra Seleccionado
-            </button>
+          </div>
 
-            @if (matchupResult(); as matchup) {
-              <div class="matchup-box mt-3">
+          <!-- RESULTADOS DEL COUNTER TEAM -->
+          @if (counterResult(); as result) {
+            <div class="counter-results-container">
+              <div class="card-header flex-between" style="margin-top: 1.5rem;">
                 <div>
-                  Ataque <strong>{{ capitalize(matchup.attacker_type) }}</strong> vs <strong>{{ capitalize(matchup.defender) }}</strong>:
+                  <h2>Equipo Counter Generado</h2>
+                  <p class="card-description">
+                    Emparejamiento exacto resuelto mediante Programacion Dinamica global sobre la matriz de tipos.
+                  </p>
                 </div>
-                <div class="flex-between mt-3">
-                  <span>Multiplicador de Dano:</span>
-                  <span class="badge" [class]="matchupBadgeClass(matchup.multiplier)">
-                    {{ matchup.multiplier }}x ({{ capitalize(matchup.label) }})
+                <div>
+                  <span class="badge badge-success" style="font-size: 0.95rem; padding: 0.4rem 0.8rem;">
+                    Ventaja Total: +{{ result.total_advantage }}
                   </span>
                 </div>
               </div>
-            }
-          </section>
 
-          <!-- Ranking Top Power -->
-          <section class="card">
-            <div class="card-header flex-between">
-              <h2>Top Ranking de Poder</h2>
-              <button (click)="loadTopRanking()" class="btn btn-sm btn-secondary">Actualizar</button>
+              <div class="counter-picks-grid">
+                @for (pick of result.picks; track pick.enemy.id; let i = $index) {
+                  <div class="counter-pick-card">
+                    <!-- Caja del Rival -->
+                    <div class="contender-box enemy">
+                      <div class="flex-between">
+                        <span class="text-muted" style="font-size: 0.75rem;">Rival #{{ i + 1 }}</span>
+                        <span class="text-muted" style="font-size: 0.75rem;">Stats: {{ pick.enemy.stat_total }}</span>
+                      </div>
+                      <h4 style="margin: 0.25rem 0;">#{{ pick.enemy.id }} {{ capitalize(pick.enemy.name) }}</h4>
+                      <div>
+                        <span class="type-badge" [class]="'type-' + pick.enemy.type1.name.toLowerCase()">
+                          {{ capitalize(pick.enemy.type1.name) }}
+                        </span>
+                        @if (pick.enemy.type2) {
+                          <span class="type-badge" [class]="'type-' + pick.enemy.type2.name.toLowerCase()">
+                            {{ capitalize(pick.enemy.type2.name) }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Insignia VS y Ventaja -->
+                    <div class="vs-badge-container">
+                      <span class="vs-badge">VS</span>
+                      <span
+                        class="advantage-badge"
+                        [class]="pick.advantage > 0 ? 'badge-success' : (pick.advantage === 0 ? 'badge-neutral' : 'badge-danger')"
+                      >
+                        {{ pick.advantage > 0 ? '+' : '' }}{{ pick.advantage }}
+                      </span>
+                    </div>
+
+                    <!-- Caja del Counter Sugerido -->
+                    <div class="contender-box counter">
+                      <div class="flex-between">
+                        <span class="text-success" style="font-weight: 700; font-size: 0.75rem;">Counter Asignado</span>
+                        <span class="text-muted" style="font-size: 0.75rem;">Stats: {{ pick.counter.stat_total }}</span>
+                      </div>
+                      <h4 style="margin: 0.25rem 0;">#{{ pick.counter.id }} {{ capitalize(pick.counter.name) }}</h4>
+                      <div>
+                        <span class="type-badge" [class]="'type-' + pick.counter.type1.name.toLowerCase()">
+                          {{ capitalize(pick.counter.type1.name) }}
+                        </span>
+                        @if (pick.counter.type2) {
+                          <span class="type-badge" [class]="'type-' + pick.counter.type2.name.toLowerCase()">
+                            {{ capitalize(pick.counter.type2.name) }}
+                          </span>
+                        }
+                      </div>
+                      <div class="matchup-metrics">
+                        <div>Dano infligido: <strong>{{ pick.offense_multiplier }}x</strong> ({{ capitalize(pick.label) }})</div>
+                        <div>Dano recibido: <strong>{{ pick.incoming_multiplier }}x</strong></div>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
             </div>
+          }
+        </section>
+      }
+
+      <!-- VISTA 2: CATALOGO, FILTROS Y ANALISIS INDIVIDUAL -->
+      @if (activeTab() === 'catalog') {
+        <div class="grid-2-col">
+          <!-- Seccion Principal: Listado y Filtros -->
+          <section class="card">
+            <div class="card-header">
+              <h2>Catalogo de Pokemon</h2>
+            </div>
+
+            <div class="filters-bar">
+              <div class="form-group">
+                <label for="filter-generation">Generacion:</label>
+                <select id="filter-generation" [(ngModel)]="selectedGeneration">
+                  <option [ngValue]="null">Todas las generaciones</option>
+                  @for (gen of generations(); track gen.number) {
+                    <option [ngValue]="gen.number">
+                      Gen {{ gen.number }} ({{ capitalize(gen.region) }}) - {{ gen.loaded }}/{{ gen.total_species }} cargados
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="filter-type">Filtrar por Tipo:</label>
+                <select id="filter-type" [(ngModel)]="selectedType">
+                  <option value="">Todos los tipos</option>
+                  @for (t of canonicalTypes; track t) {
+                    <option [value]="t">{{ capitalize(t) }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group btn-group-align">
+                <button (click)="applyFilters()" class="btn btn-primary">Aplicar</button>
+                <button (click)="resetFilters()" class="btn btn-secondary">Limpiar</button>
+              </div>
+            </div>
+
+            <!-- Tabla de Pokemon -->
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>#</th>
+                    <th>ID</th>
                     <th>Nombre</th>
-                    <th>Score</th>
+                    <th>Tipo 1</th>
+                    <th>Tipo 2</th>
+                    <th>Stats</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @if (topRanking().length === 0) {
+                  @if (isLoadingPokemon()) {
                     <tr>
-                      <td colspan="3" class="text-center text-muted">Cargando ranking...</td>
+                      <td colspan="6" class="text-center text-muted">Cargando datos...</td>
+                    </tr>
+                  } @else if (pokemonList().length === 0) {
+                    <tr>
+                      <td colspan="6" class="text-center text-muted">No se encontraron Pokemon.</td>
                     </tr>
                   } @else {
-                    @for (item of topRanking(); track item.name; let i = $index) {
-                      <tr>
-                        <td><strong>{{ i + 1 }}</strong></td>
-                        <td>{{ capitalize(item.name) }}</td>
-                        <td><span class="badge badge-neutral">{{ item.score }} pts</span></td>
+                    @for (p of pokemonList(); track p.id) {
+                      <tr [class.selected]="selectedPokemon()?.id === p.id" (click)="selectPokemon(p.id)">
+                        <td>#{{ p.id }}</td>
+                        <td><strong>{{ capitalize(p.name) }}</strong></td>
+                        <td>
+                          <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
+                            {{ capitalize(p.type1.name) }}
+                          </span>
+                        </td>
+                        <td>
+                          @if (p.type2) {
+                            <span class="type-badge" [class]="'type-' + p.type2.name.toLowerCase()">
+                              {{ capitalize(p.type2.name) }}
+                            </span>
+                          } @else {
+                            <span class="text-muted">-</span>
+                          }
+                        </td>
+                        <td><strong>{{ p.stat_total }}</strong></td>
+                        <td>
+                          <div style="display: flex; gap: 0.25rem;">
+                            <button
+                              (click)="selectPokemon(p.id); $event.stopPropagation()"
+                              class="btn btn-sm btn-secondary"
+                            >
+                              Detalles
+                            </button>
+                            <button
+                              (click)="addPokemonToTeam(p); $event.stopPropagation()"
+                              [disabled]="myTeam().length >= 6 || isAlreadyInTeam(p.id)"
+                              class="btn btn-sm btn-primary"
+                            >
+                              + Equipo
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     }
                   }
                 </tbody>
               </table>
             </div>
+
+            <!-- Paginacion -->
+            <div class="pagination-bar">
+              <div class="pagination-info">{{ paginationText() }}</div>
+              <div class="pagination-buttons">
+                <button
+                  (click)="prevPage()"
+                  [disabled]="offset() === 0 || selectedType !== ''"
+                  class="btn btn-sm btn-secondary"
+                >
+                  Anterior
+                </button>
+                <button
+                  (click)="nextPage()"
+                  [disabled]="offset() + limit() >= totalPokemon() || selectedType !== ''"
+                  class="btn btn-sm btn-secondary"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
           </section>
-        </aside>
-      </div>
+
+          <!-- Panel Lateral: Detalle, Percentil, Matchup y Top Ranking -->
+          <aside class="sidebar-col">
+            <!-- Detalle de Pokemon -->
+            <section class="card">
+              <div class="card-header">
+                <h2>Detalle de Pokemon</h2>
+              </div>
+              @if (selectedPokemon(); as current) {
+                <div>
+                  <div class="flex-between">
+                    <h3>#{{ current.id }} {{ capitalize(current.name) }}</h3>
+                    <div>
+                      <span class="type-badge" [class]="'type-' + current.type1.name.toLowerCase()">
+                        {{ capitalize(current.type1.name) }}
+                      </span>
+                      @if (current.type2) {
+                        <span class="type-badge" [class]="'type-' + current.type2.name.toLowerCase()">
+                          {{ capitalize(current.type2.name) }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="stats-grid">
+                    <div class="stat-box"><div class="stat-name">HP</div><div class="stat-val">{{ current.hp }}</div></div>
+                    <div class="stat-box"><div class="stat-name">Ataque</div><div class="stat-val">{{ current.attack }}</div></div>
+                    <div class="stat-box"><div class="stat-name">Defensa</div><div class="stat-val">{{ current.defense }}</div></div>
+                    <div class="stat-box"><div class="stat-name">Ataque Sp.</div><div class="stat-val">{{ current.sp_attack }}</div></div>
+                    <div class="stat-box"><div class="stat-name">Defensa Sp.</div><div class="stat-val">{{ current.sp_defense }}</div></div>
+                    <div class="stat-box"><div class="stat-name">Velocidad</div><div class="stat-val">{{ current.speed }}</div></div>
+                  </div>
+
+                  <div class="flex-between">
+                    <strong>Total de Estadisticas:</strong>
+                    <span class="badge badge-neutral">{{ current.stat_total }}</span>
+                  </div>
+                  <div class="flex-between mt-3">
+                    <strong>Percentil de Poder:</strong>
+                    <span class="badge badge-success">{{ selectedPercentile() }}%</span>
+                  </div>
+
+                  <div class="mt-3">
+                    <button
+                      (click)="addPokemonToTeam(current)"
+                      [disabled]="myTeam().length >= 6 || isAlreadyInTeam(current.id)"
+                      class="btn btn-primary btn-block"
+                    >
+                      Agregar este Pokemon al Equipo
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <p class="text-muted text-center">Selecciona un Pokemon de la tabla para ver sus detalles.</p>
+              }
+            </section>
+
+            <!-- Calculadora de Matchup Individual -->
+            <section class="card">
+              <div class="card-header">
+                <h2>Calculadora de Matchup Individual</h2>
+              </div>
+              <div class="form-group">
+                <label for="matchup-type">Tipo Atacante:</label>
+                <select id="matchup-type" [(ngModel)]="attackerType">
+                  @for (t of canonicalTypes; track t) {
+                    <option [value]="t">{{ capitalize(t) }}</option>
+                  }
+                </select>
+              </div>
+              <button
+                (click)="calculateMatchup()"
+                [disabled]="!selectedPokemon() || isCalculatingMatchup()"
+                class="btn btn-primary btn-block mt-3"
+              >
+                Calcular Dano contra Seleccionado
+              </button>
+
+              @if (matchupResult(); as matchup) {
+                <div class="matchup-box mt-3">
+                  <div>
+                    Ataque <strong>{{ capitalize(matchup.attacker_type) }}</strong> vs <strong>{{ capitalize(matchup.defender) }}</strong>:
+                  </div>
+                  <div class="flex-between mt-3">
+                    <span>Multiplicador de Dano:</span>
+                    <span class="badge" [class]="matchupBadgeClass(matchup.multiplier)">
+                      {{ matchup.multiplier }}x ({{ capitalize(matchup.label) }})
+                    </span>
+                  </div>
+                </div>
+              }
+            </section>
+
+            <!-- Ranking Top Power -->
+            <section class="card">
+              <div class="card-header flex-between">
+                <h2>Top Ranking de Poder</h2>
+                <button (click)="loadTopRanking()" class="btn btn-sm btn-secondary">Actualizar</button>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Nombre</th>
+                      <th>Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (topRanking().length === 0) {
+                      <tr>
+                        <td colspan="3" class="text-center text-muted">Cargando ranking...</td>
+                      </tr>
+                    } @else {
+                      @for (item of topRanking(); track item.name; let i = $index) {
+                        <tr>
+                          <td><strong>{{ i + 1 }}</strong></td>
+                          <td>{{ capitalize(item.name) }}</td>
+                          <td><span class="badge badge-neutral">{{ item.score }} pts</span></td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </aside>
+        </div>
+      }
     </main>
 
     <footer class="footer">
       <div class="container text-center">
-        <p>NewMonolioPokemon - Frontend basico en Angular para pruebas de desarrollo</p>
+        <p>NewMonolioPokemon - Frontend en Angular con Generador de Counter Team</p>
       </div>
     </footer>
   `,
@@ -319,6 +569,9 @@ export class App implements OnInit {
 
   // Configuracion API
   apiUrl = 'http://localhost:8000/api/v1';
+
+  // Pestana activa
+  activeTab = signal<'counter' | 'catalog'>('counter');
 
   // Estados de salud
   livenessStatus = signal('No verificado');
@@ -351,13 +604,21 @@ export class App implements OnInit {
   selectedPokemon = signal<PokemonRead | null>(null);
   selectedPercentile = signal<number>(0);
 
-  // Matchup
+  // Matchup individual
   attackerType = 'fire';
   isCalculatingMatchup = signal(false);
   matchupResult = signal<MatchupRead | null>(null);
 
   // Top ranking
   topRanking = signal<TopPokemonRead[]>([]);
+
+  // Team Builder & Counter Team
+  myTeam = signal<PokemonRead[]>([]);
+  quickAddInput = '';
+  excludeMyTeam = false;
+  isGeneratingCounter = signal(false);
+  teamError = signal<string | null>(null);
+  counterResult = signal<CounterTeamRead | null>(null);
 
   ngOnInit(): void {
     this.checkHealth();
@@ -530,6 +791,106 @@ export class App implements OnInit {
     if (this.offset() >= this.limit()) {
       this.offset.update((v) => v - this.limit());
       this.loadPokemon();
+    }
+  }
+
+  // --- LOGICA DE EQUIPO Y COUNTER TEAM ---
+
+  isAlreadyInTeam(pokemonId: number): boolean {
+    return this.myTeam().some((p) => p.id === pokemonId);
+  }
+
+  addPokemonToTeam(pokemon: PokemonRead): void {
+    this.teamError.set(null);
+    if (this.myTeam().length >= 6) {
+      this.teamError.set('El equipo ya tiene el maximo permitido de 6 Pokemon.');
+      return;
+    }
+    if (this.isAlreadyInTeam(pokemon.id)) {
+      this.teamError.set(`'${this.capitalize(pokemon.name)}' ya se encuentra en el equipo.`);
+      return;
+    }
+    this.myTeam.update((team) => [...team, pokemon]);
+  }
+
+  removePokemonFromTeam(index: number): void {
+    this.teamError.set(null);
+    this.myTeam.update((team) => team.filter((_, i) => i !== index));
+    if (this.myTeam().length === 0) {
+      this.counterResult.set(null);
+    }
+  }
+
+  clearTeam(): void {
+    this.myTeam.set([]);
+    this.counterResult.set(null);
+    this.teamError.set(null);
+  }
+
+  async addQuickPokemon(): Promise<void> {
+    const input = this.quickAddInput.trim();
+    if (!input) return;
+
+    const base = this.cleanUrl();
+    this.teamError.set(null);
+
+    try {
+      const pokemon = await firstValueFrom(this.http.get<PokemonRead>(`${base}/pokemon/${encodeURIComponent(input.toLowerCase())}`));
+      this.addPokemonToTeam(pokemon);
+      this.quickAddInput = '';
+    } catch (err: any) {
+      if (err.status === 404) {
+        this.teamError.set(`No se encontro el Pokemon '${input}'. Verifica el nombre o numero.`);
+      } else {
+        this.teamError.set(`Error al buscar Pokemon '${input}': ${err.message || 'Error de conexion'}`);
+      }
+    }
+  }
+
+  loadRandomTeam(): void {
+    this.clearTeam();
+    const available = [...this.pokemonList()];
+    if (available.length === 0) return;
+
+    // Seleccionar hasta 3 o 4 pokemon de muestra
+    const sample = available.slice(0, Math.min(4, available.length));
+    this.myTeam.set(sample);
+  }
+
+  async generateCounterTeam(): Promise<void> {
+    const team = this.myTeam();
+    if (team.length === 0) {
+      this.teamError.set('Debes ingresar al menos 1 Pokemon en el equipo.');
+      return;
+    }
+
+    const base = this.cleanUrl();
+    this.isGeneratingCounter.set(true);
+    this.teamError.set(null);
+
+    try {
+      let params = new HttpParams();
+      for (const member of team) {
+        params = params.append('team', member.id.toString());
+      }
+      if (this.excludeMyTeam) {
+        params = params.set('exclude_team', 'true');
+      }
+
+      const result = await firstValueFrom(
+        this.http.get<CounterTeamRead>(`${base}/team/counters`, { params })
+      );
+      this.counterResult.set(result);
+    } catch (err: any) {
+      if (err.status === 409) {
+        this.teamError.set('No hay suficientes Pokemon en la base de datos para generar un equipo counter sin repetir.');
+      } else if (err.status === 404) {
+        this.teamError.set('Uno o mas miembros del equipo no fueron encontrados.');
+      } else {
+        this.teamError.set(`Error al generar equipo counter: ${err.message || 'Fallo de conexion'}`);
+      }
+    } finally {
+      this.isGeneratingCounter.set(false);
     }
   }
 }

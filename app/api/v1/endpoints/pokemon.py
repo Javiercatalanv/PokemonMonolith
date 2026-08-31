@@ -61,9 +61,14 @@ async def pokemon_by_type(
     return [PokemonRead.model_validate(item) for item in items]
 
 
-@router.get("/{pokemon_id}", response_model=PokemonRead, responses=_NOT_FOUND)
-async def get_pokemon(pokemon_id: int, service: PokemonServiceDep) -> PokemonRead:
-    return PokemonRead.model_validate(await service.get(pokemon_id))
+@router.get(
+    "/{identifier}",
+    response_model=PokemonRead,
+    responses=_NOT_FOUND,
+    summary="Detalle de un pokemon por id o nombre",
+)
+async def get_pokemon(identifier: str, service: PokemonServiceDep) -> PokemonRead:
+    return PokemonRead.model_validate(await service.resolve(identifier))
 
 
 @router.get(
