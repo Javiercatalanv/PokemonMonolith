@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import case, func, select
 
-from app.models import Pokemon, Type, TypeEffectiveness
+from app.models import Pokemon, PokemonForm, Type, TypeEffectiveness
 from app.repositories.base import BaseRepository
 
 
@@ -65,6 +65,26 @@ class PokemonRepository(BaseRepository[Pokemon]):
             .limit(limit)
         )
         return (await self.session.execute(stmt)).unique().scalars().all()
+
+
+class PokemonFormRepository(BaseRepository[PokemonForm]):
+    """Las formas viven en su propia tabla para que no se cuelen en el catalogo.
+
+    Nada que liste o cuente `pokemon` las ve: ni la paginacion, ni el ranking, ni los
+    candidatos del contraequipo. Se piden solo cuando alguien abre una tarjeta.
+    """
+
+    model = PokemonForm
+
+    async def list_for(self, pokemon_id: int) -> Sequence[PokemonForm]:
+        stmt = (
+            select(PokemonForm).where(PokemonForm.pokemon_id == pokemon_id).order_by(PokemonForm.id)
+        )
+        return (await self.session.execute(stmt)).unique().scalars().all()
+
+    async def get_by_name(self, name: str) -> PokemonForm | None:
+        stmt = select(PokemonForm).where(PokemonForm.name == name)
+        return (await self.session.execute(stmt)).unique().scalar_one_or_none()
 
 
 class TypeRepository(BaseRepository[Type]):
