@@ -107,3 +107,49 @@ class Pokemon(Base):
 
     def __repr__(self) -> str:
         return f"<Pokemon #{self.id} {self.name}>"
+
+
+class PokemonForm(Base):
+    """Forma alternativa de un pokemon: mega, primal, regional, rotom-heat...
+
+    Solo se guardan las que cambian el combate, es decir, las que tienen tipos o
+    stats distintos de su especie. Las gigantamax y los disfraces no alteran nada
+    de lo que este proyecto mira, asi que el seeder los descarta.
+
+    Las columnas se llaman igual que en `Pokemon` a proposito: los algoritmos y los
+    schemas leen los mismos atributos y sirven para las dos sin ramificar.
+
+    El `id` es el de la PokeAPI (10001 en adelante), de modo que nunca choca con un
+    numero de la Pokedex nacional y una forma se puede pedir por id como cualquier otro.
+    """
+
+    __tablename__ = "pokemon_forms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    pokemon_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("pokemon.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    # Lo que se pinta en el desplegable: "Mega X", "Alola", "Heat"
+    label: Mapped[str] = mapped_column(String(60), nullable=False)
+
+    type1_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types.id", ondelete="RESTRICT"), nullable=False
+    )
+    type2_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("types.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    hp: Mapped[int] = mapped_column(Integer, nullable=False)
+    attack: Mapped[int] = mapped_column(Integer, nullable=False)
+    defense: Mapped[int] = mapped_column(Integer, nullable=False)
+    sp_attack: Mapped[int] = mapped_column(Integer, nullable=False)
+    sp_defense: Mapped[int] = mapped_column(Integer, nullable=False)
+    speed: Mapped[int] = mapped_column(Integer, nullable=False)
+    sprite_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    type1: Mapped[Type] = relationship(foreign_keys=[type1_id], lazy="joined")
+    type2: Mapped[Type | None] = relationship(foreign_keys=[type2_id], lazy="joined")
+
+    def __repr__(self) -> str:
+        return f"<PokemonForm #{self.id} {self.name}>"
