@@ -21,6 +21,7 @@ export interface PokemonRead {
   sp_defense: number;
   speed: number;
   stat_total: number;
+  sprite_url?: string | null;
 }
 
 export interface PageResponse<T> {
@@ -168,6 +169,9 @@ export interface CounterTeamRead {
                       X
                     </button>
                   </div>
+                  @if (p.sprite_url) {
+                    <img [src]="p.sprite_url" [alt]="p.name" class="pokemon-slot-img" />
+                  }
                   <div>
                     <div class="team-member-name">#{{ p.id }} {{ capitalize(p.name) }}</div>
                     <div>
@@ -247,16 +251,23 @@ export interface CounterTeamRead {
                         <span class="text-muted" style="font-size: 0.75rem;">Rival #{{ i + 1 }}</span>
                         <span class="text-muted" style="font-size: 0.75rem;">Stats: {{ pick.enemy.stat_total }}</span>
                       </div>
-                      <h4 style="margin: 0.25rem 0;">#{{ pick.enemy.id }} {{ capitalize(pick.enemy.name) }}</h4>
-                      <div>
-                        <span class="type-badge" [class]="'type-' + pick.enemy.type1.name.toLowerCase()">
-                          {{ capitalize(pick.enemy.type1.name) }}
-                        </span>
-                        @if (pick.enemy.type2) {
-                          <span class="type-badge" [class]="'type-' + pick.enemy.type2.name.toLowerCase()">
-                            {{ capitalize(pick.enemy.type2.name) }}
-                          </span>
+                      <div class="pick-header">
+                        @if (pick.enemy.sprite_url) {
+                          <img [src]="pick.enemy.sprite_url" [alt]="pick.enemy.name" class="pokemon-pick-img" />
                         }
+                        <div>
+                          <h4 style="margin: 0.25rem 0;">#{{ pick.enemy.id }} {{ capitalize(pick.enemy.name) }}</h4>
+                          <div>
+                            <span class="type-badge" [class]="'type-' + pick.enemy.type1.name.toLowerCase()">
+                              {{ capitalize(pick.enemy.type1.name) }}
+                            </span>
+                            @if (pick.enemy.type2) {
+                              <span class="type-badge" [class]="'type-' + pick.enemy.type2.name.toLowerCase()">
+                                {{ capitalize(pick.enemy.type2.name) }}
+                              </span>
+                            }
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -277,16 +288,23 @@ export interface CounterTeamRead {
                         <span class="text-success" style="font-weight: 700; font-size: 0.75rem;">Counter Asignado</span>
                         <span class="text-muted" style="font-size: 0.75rem;">Stats: {{ pick.counter.stat_total }}</span>
                       </div>
-                      <h4 style="margin: 0.25rem 0;">#{{ pick.counter.id }} {{ capitalize(pick.counter.name) }}</h4>
-                      <div>
-                        <span class="type-badge" [class]="'type-' + pick.counter.type1.name.toLowerCase()">
-                          {{ capitalize(pick.counter.type1.name) }}
-                        </span>
-                        @if (pick.counter.type2) {
-                          <span class="type-badge" [class]="'type-' + pick.counter.type2.name.toLowerCase()">
-                            {{ capitalize(pick.counter.type2.name) }}
-                          </span>
+                      <div class="pick-header">
+                        @if (pick.counter.sprite_url) {
+                          <img [src]="pick.counter.sprite_url" [alt]="pick.counter.name" class="pokemon-pick-img" />
                         }
+                        <div>
+                          <h4 style="margin: 0.25rem 0;">#{{ pick.counter.id }} {{ capitalize(pick.counter.name) }}</h4>
+                          <div>
+                            <span class="type-badge" [class]="'type-' + pick.counter.type1.name.toLowerCase()">
+                              {{ capitalize(pick.counter.type1.name) }}
+                            </span>
+                            @if (pick.counter.type2) {
+                              <span class="type-badge" [class]="'type-' + pick.counter.type2.name.toLowerCase()">
+                                {{ capitalize(pick.counter.type2.name) }}
+                              </span>
+                            }
+                          </div>
+                        </div>
                       </div>
                       <div class="matchup-metrics">
                         <div>Dano infligido: <strong>{{ pick.offense_multiplier }}x</strong> ({{ capitalize(pick.label) }})</div>
@@ -345,7 +363,7 @@ export interface CounterTeamRead {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Nombre</th>
+                    <th>Pokemon</th>
                     <th>Tipo 1</th>
                     <th>Tipo 2</th>
                     <th>Stats</th>
@@ -365,7 +383,14 @@ export interface CounterTeamRead {
                     @for (p of pokemonList(); track p.id) {
                       <tr [class.selected]="selectedPokemon()?.id === p.id" (click)="selectPokemon(p.id)">
                         <td>#{{ p.id }}</td>
-                        <td><strong>{{ capitalize(p.name) }}</strong></td>
+                        <td>
+                          <div class="pokemon-name-col">
+                            @if (p.sprite_url) {
+                              <img [src]="p.sprite_url" [alt]="p.name" class="pokemon-sprite-thumb" />
+                            }
+                            <strong>{{ capitalize(p.name) }}</strong>
+                          </div>
+                        </td>
                         <td>
                           <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
                             {{ capitalize(p.type1.name) }}
@@ -436,6 +461,9 @@ export interface CounterTeamRead {
               </div>
               @if (selectedPokemon(); as current) {
                 <div>
+                  @if (current.sprite_url) {
+                    <img [src]="current.sprite_url" [alt]="current.name" class="pokemon-artwork-large" />
+                  }
                   <div class="flex-between">
                     <h3>#{{ current.id }} {{ capitalize(current.name) }}</h3>
                     <div>
@@ -835,7 +863,9 @@ export class App implements OnInit {
     this.teamError.set(null);
 
     try {
-      const pokemon = await firstValueFrom(this.http.get<PokemonRead>(`${base}/pokemon/${encodeURIComponent(input.toLowerCase())}`));
+      const pokemon = await firstValueFrom(
+        this.http.get<PokemonRead>(`${base}/pokemon/${encodeURIComponent(input.toLowerCase())}`)
+      );
       this.addPokemonToTeam(pokemon);
       this.quickAddInput = '';
     } catch (err: any) {
@@ -852,7 +882,6 @@ export class App implements OnInit {
     const available = [...this.pokemonList()];
     if (available.length === 0) return;
 
-    // Seleccionar hasta 3 o 4 pokemon de muestra
     const sample = available.slice(0, Math.min(4, available.length));
     this.myTeam.set(sample);
   }
