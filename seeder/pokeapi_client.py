@@ -42,6 +42,11 @@ class TypeData:
     damage_to: dict[str, float] = field(default_factory=dict)
 
 
+# Ultimo numero de la Pokedex nacional. A partir de ahi la PokeAPI numera las
+# variedades alternativas (10001 en adelante), que es justo como se localizan.
+MAX_NATIONAL_DEX = 1025
+
+
 @dataclass(frozen=True)
 class PokemonData:
     id: int
@@ -55,6 +60,32 @@ class PokemonData:
     sp_defense: int
     speed: int
     sprite_url: str | None = None
+
+
+@dataclass(frozen=True)
+class FormData:
+    """Una variedad alternativa, con los mismos campos de combate que `PokemonData`."""
+
+    id: int
+    base_id: int  # numero de Pokedex de la especie a la que pertenece
+    name: str
+    label: str
+    type1: str
+    type2: str | None
+    hp: int
+    attack: int
+    defense: int
+    sp_attack: int
+    sp_defense: int
+    speed: int
+    sprite_url: str | None = None
+
+
+def form_label(form_name: str, species_name: str) -> str:
+    """Nombre corto para el desplegable: 'charizard-mega-x' + 'charizard' -> 'Mega X'."""
+    prefix = f"{species_name}-"
+    suffix = form_name.removeprefix(prefix) if form_name.startswith(prefix) else form_name
+    return suffix.replace("-", " ").title()
 
 
 class PokeAPIClient:
@@ -150,6 +181,62 @@ class PokeAPIClient:
                 logger.warning("Se omite %s: %s", name, exc)
 
         return pokemon
+
+    def fetch_forms(self, base_ids: set[int]) -> list[FormData]:
+        """Descarga las variedades alternativas de las especies ya cargadas.
+
+        No hace falta preguntar por las variedades especie a especie: las formas son
+        justo las entradas con id por encima de la Pokedex nacional, y cada una dice
+        a que especie pertenece. Asi son ~330 peticiones en vez de ~1350.
+        """
+        total = int(self._get("/pokemon", limit=1)["count"])
+        logger.info("Buscando formas alternativas entre las %s entradas de la API...", total)
+        index = self._get("/pokemon", limit=total)
+
+        names = [
+            entry["name"]
+            for entry in index["results"]
+            if int(entry["url"].rstrip("/").split("/")[-1]) > MAX_NATIONAL_DEX
+        ]
+        logger.info("Encontradas %s formas alternativas", len(names))
+
+        forms: list[FormData] = []
+        for position, name in enumerate(names, start=1):
+            logger.info("[%s/%s] Descargando forma %s...", position, len(names), name)
+            try:
+                form = self._parse_form(self._get(f"/pokemon/{name}"))
+            except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+                logger.warning("Se omite la forma %s: %s", name, exc)
+                continue
+
+            # Una forma de una especie que no se ha cargado no tiene donde colgar
+            if form.base_id in base_ids:
+                forms.append(form)
+
+        return forms
+
+    @classmethod
+    def _parse_form(cls, payload: dict[str, Any]) -> FormData:
+        """Igual que `_parse_pokemon`, mas la especie de la que cuelga y su etiqueta."""
+        base = cls._parse_pokemon(payload)
+        species = payload["species"]
+        base_id = int(species["url"].rstrip("/").split("/")[-1])
+
+        return FormData(
+            id=base.id,
+            base_id=base_id,
+            name=base.name,
+            label=form_label(base.name, str(species["name"]).lower()),
+            type1=base.type1,
+            type2=base.type2,
+            hp=base.hp,
+            attack=base.attack,
+            defense=base.defense,
+            sp_attack=base.sp_attack,
+            sp_defense=base.sp_defense,
+            speed=base.speed,
+            sprite_url=base.sprite_url,
+        )
 
     @staticmethod
     def _parse_pokemon(payload: dict[str, Any]) -> PokemonData:
