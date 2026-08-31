@@ -24,6 +24,19 @@ export interface PokemonRead {
   sprite_url?: string | null;
 }
 
+export interface PokemonFormRead extends PokemonRead {
+  pokemon_id: number;
+  label: string;
+}
+
+/** Un hueco del equipo: la especie, sus formas y cual esta puesta ahora mismo. */
+export interface TeamMember {
+  base: PokemonRead;
+  forms: PokemonFormRead[];
+  active: PokemonRead;
+  loadingForms: boolean;
+}
+
 export interface PageResponse<T> {
   items: T[];
   total: number;
@@ -219,7 +232,7 @@ export interface CounterTeamRead {
           <!-- Grid de Slots del Equipo -->
           <div class="team-grid">
             @for (slot of [0, 1, 2, 3, 4, 5]; track slot) {
-              @if (myTeam()[slot]; as p) {
+              @if (myTeam()[slot]; as member) {
                 <div class="team-slot filled">
                   <div class="flex-between" style="width: 100%;">
                     <span class="team-slot-number">Slot {{ slot + 1 }}</span>
@@ -227,24 +240,51 @@ export interface CounterTeamRead {
                       X
                     </button>
                   </div>
-                  @if (p.sprite_url) {
-                    <img [src]="p.sprite_url" [alt]="p.name" class="pokemon-slot-img" />
+                  @if (member.active.sprite_url) {
+                    <img [src]="member.active.sprite_url" [alt]="member.active.name" class="pokemon-slot-img" />
                   }
                   <div>
-                    <div class="team-member-name">#{{ p.id }} {{ capitalize(p.name) }}</div>
+                    <div class="team-member-name">
+                      #{{ member.base.id }} {{ capitalize(member.base.name) }}
+                    </div>
                     <div>
-                      <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
-                        {{ capitalize(p.type1.name) }}
+                      <span class="type-badge" [class]="'type-' + member.active.type1.name.toLowerCase()">
+                        {{ capitalize(member.active.type1.name) }}
                       </span>
-                      @if (p.type2) {
-                        <span class="type-badge" [class]="'type-' + p.type2.name.toLowerCase()">
-                          {{ capitalize(p.type2.name) }}
+                      @if (member.active.type2) {
+                        <span class="type-badge" [class]="'type-' + member.active.type2.name.toLowerCase()">
+                          {{ capitalize(member.active.type2.name) }}
                         </span>
                       }
                     </div>
                   </div>
+
+                  <!-- Selector de forma: solo aparece si transformarse cambia algo -->
+                  @if (member.loadingForms) {
+                    <div class="form-picker-note">Buscando formas...</div>
+                  } @else if (member.forms.length > 0) {
+                    <select
+                      class="form-picker"
+                      [attr.aria-label]="'Forma de ' + member.base.name"
+                      [ngModel]="member.active.id"
+                      (ngModelChange)="selectForm(slot, $event)"
+                    >
+                      <option [ngValue]="member.base.id">Normal</option>
+                      @for (form of member.forms; track form.id) {
+                        <option [ngValue]="form.id">{{ form.label }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <div class="form-picker-note">Sin formas alternativas</div>
+                  }
+
                   <div class="text-muted" style="font-size: 0.75rem;">
-                    Stats: <strong>{{ p.stat_total }}</strong>
+                    Stats: <strong>{{ member.active.stat_total }}</strong>
+                    @if (statDelta(member); as delta) {
+                      <span class="stat-delta" [class.negative]="delta < 0">
+                        {{ delta > 0 ? '+' : '' }}{{ delta }}
+                      </span>
+                    }
                   </div>
                 </div>
               } @else {
@@ -699,7 +739,7 @@ export class App implements OnInit {
   topRanking = signal<TopPokemonRead[]>([]);
 
   // Team Builder & Counter Team
-  myTeam = signal<PokemonRead[]>([]);
+  myTeam = signal<TeamMember[]>([]);
   quickAddInput = '';
   excludeMyTeam = false;
   isGeneratingCounter = signal(false);
@@ -892,8 +932,9 @@ export class App implements OnInit {
 
   // --- LOGICA DE EQUIPO Y COUNTER TEAM ---
 
+  /** Se compara contra la especie: charizard y su mega son el mismo hueco. */
   isAlreadyInTeam(pokemonId: number): boolean {
-    return this.myTeam().some((p) => p.id === pokemonId);
+    return this.myTeam().some((member) => member.base.id === pokemonId);
   }
 
   addPokemonToTeam(pokemon: PokemonRead): void {
@@ -906,7 +947,51 @@ export class App implements OnInit {
       this.teamError.set(`'${this.capitalize(pokemon.name)}' ya se encuentra en el equipo.`);
       return;
     }
-    this.myTeam.update((team) => [...team, pokemon]);
+
+    this.myTeam.update((team) => [
+      ...team,
+      { base: pokemon, forms: [], active: pokemon, loadingForms: true },
+    ]);
+    // Las formas se piden aparte para que la tarjeta aparezca ya, sin esperar
+    this.loadFormsFor(pokemon.id);
+  }
+
+  /** Trae las formas de una especie y las cuelga de su hueco. */
+  private async loadFormsFor(baseId: number): Promise<void> {
+    let forms: PokemonFormRead[] = [];
+    try {
+      forms = await firstValueFrom(
+        this.http.get<PokemonFormRead[]>(`${this.cleanUrl()}/pokemon/${baseId}/forms`)
+      );
+    } catch (err) {
+      console.error('Error al cargar las formas:', err);
+    }
+
+    // El hueco puede haberse quitado mientras llegaba la respuesta
+    this.myTeam.update((team) =>
+      team.map((member) =>
+        member.base.id === baseId ? { ...member, forms, loadingForms: false } : member
+      )
+    );
+  }
+
+  /** Cambia la forma activa de un hueco. El id de la base significa "Normal". */
+  selectForm(index: number, formId: number): void {
+    this.teamError.set(null);
+    this.myTeam.update((team) =>
+      team.map((member, i) => {
+        if (i !== index) return member;
+        const chosen = member.forms.find((form) => form.id === formId);
+        return { ...member, active: chosen ?? member.base };
+      })
+    );
+    // El equipo ya no es el que produjo ese resultado
+    this.counterResult.set(null);
+  }
+
+  /** Cuanto suben o bajan los stats respecto de la forma normal. */
+  statDelta(member: TeamMember): number {
+    return member.active.stat_total - member.base.stat_total;
   }
 
   removePokemonFromTeam(index: number): void {
@@ -1032,7 +1117,17 @@ export class App implements OnInit {
     if (available.length === 0) return;
 
     const sample = available.slice(0, Math.min(4, available.length));
-    this.myTeam.set(sample);
+    this.myTeam.set(
+      sample.map((pokemon) => ({
+        base: pokemon,
+        forms: [],
+        active: pokemon,
+        loadingForms: true,
+      }))
+    );
+    for (const pokemon of sample) {
+      this.loadFormsFor(pokemon.id);
+    }
   }
 
   async generateCounterTeam(): Promise<void> {
@@ -1049,7 +1144,8 @@ export class App implements OnInit {
     try {
       let params = new HttpParams();
       for (const member of team) {
-        params = params.append('team', member.id.toString());
+        // Se manda la forma puesta: el backend la resuelve por su id igual que una especie
+        params = params.append('team', member.active.id.toString());
       }
       if (this.excludeMyTeam) {
         params = params.set('exclude_team', 'true');
