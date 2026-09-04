@@ -24,6 +24,19 @@ export interface PokemonRead {
   sprite_url?: string | null;
 }
 
+export interface PokemonFormRead extends PokemonRead {
+  pokemon_id: number;
+  label: string;
+}
+
+/** Un hueco del equipo: la especie, sus formas y cual esta puesta ahora mismo. */
+export interface TeamMember {
+  base: PokemonRead;
+  forms: PokemonFormRead[];
+  active: PokemonRead;
+  loadingForms: boolean;
+}
+
 export interface PageResponse<T> {
   items: T[];
   total: number;
@@ -74,15 +87,8 @@ export interface CounterTeamRead {
   template: `
     <header class="header">
       <div class="container header-content">
-        <div>
-          <h1>Pokemon Monolith - Generador de Counter Team</h1>
-          <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
-        </div>
-        <div class="api-config">
-          <label for="api-url">Base API URL:</label>
-          <input type="text" id="api-url" [(ngModel)]="apiUrl" />
-          <button (click)="checkHealth()" class="btn btn-secondary">Comprobar Estado</button>
-        </div>
+        <h1>Pokemon Monolith - Generador de Counter Team</h1>
+        <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
       </div>
     </header>
 
@@ -136,13 +142,71 @@ export interface CounterTeamRead {
           <div class="team-builder-controls">
             <div class="form-group" style="max-width: 320px;">
               <label for="quick-add-pokemon">Buscar Pokemon por Nombre o ID:</label>
-              <input
-                type="text"
-                id="quick-add-pokemon"
-                [(ngModel)]="quickAddInput"
-                placeholder="Ej: charizard, 1, squirtle..."
-                (keydown.enter)="addQuickPokemon()"
-              />
+              <!-- Preselector: al escribir se piden sugerencias a /pokemon/search -->
+              <div class="typeahead">
+                <input
+                  type="text"
+                  id="quick-add-pokemon"
+                  autocomplete="off"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  [attr.aria-expanded]="showSuggestions()"
+                  [attr.aria-activedescendant]="highlightedIndex() >= 0 ? 'suggestion-' + highlightedIndex() : null"
+                  [(ngModel)]="quickAddInput"
+                  placeholder="Ej: charizard, 1, squirtle..."
+                  (input)="onSearchInput()"
+                  (focus)="onSearchFocus()"
+                  (blur)="closeSuggestions()"
+                  (keydown.enter)="onSearchEnter(); $event.preventDefault()"
+                  (keydown.arrowdown)="moveHighlight(1); $event.preventDefault()"
+                  (keydown.arrowup)="moveHighlight(-1); $event.preventDefault()"
+                  (keydown.escape)="closeSuggestions()"
+                />
+
+                @if (showSuggestions()) {
+                  <!-- preventDefault en mousedown: el input no pierde el foco al clicar -->
+                  <ul class="typeahead-list" role="listbox" (mousedown)="$event.preventDefault()">
+                    @if (isSearching() && suggestions().length === 0) {
+                      <li class="typeahead-empty">Buscando...</li>
+                    } @else if (suggestions().length === 0) {
+                      <li class="typeahead-empty">Ningun Pokemon se llama asi.</li>
+                    } @else {
+                      @for (p of suggestions(); track p.id; let i = $index) {
+                        <li
+                          [id]="'suggestion-' + i"
+                          role="option"
+                          class="typeahead-option"
+                          [class.highlighted]="highlightedIndex() === i"
+                          [class.disabled]="isAlreadyInTeam(p.id)"
+                          [attr.aria-selected]="highlightedIndex() === i"
+                          (click)="pickSuggestion(p)"
+                          (mouseenter)="highlightedIndex.set(i)"
+                        >
+                          @if (p.sprite_url) {
+                            <img [src]="p.sprite_url" [alt]="p.name" class="typeahead-img" />
+                          } @else {
+                            <span class="typeahead-img"></span>
+                          }
+                          <span class="typeahead-name">{{ capitalize(p.name) }}</span>
+                          <span class="typeahead-types">
+                            <span class="type-badge" [class]="'type-' + p.type1.name">
+                              {{ capitalize(p.type1.name) }}
+                            </span>
+                            @if (p.type2) {
+                              <span class="type-badge" [class]="'type-' + p.type2.name">
+                                {{ capitalize(p.type2.name) }}
+                              </span>
+                            }
+                          </span>
+                          <span class="typeahead-id">
+                            @if (isAlreadyInTeam(p.id)) { Ya esta } @else { #{{ p.id }} }
+                          </span>
+                        </li>
+                      }
+                    }
+                  </ul>
+                }
+              </div>
             </div>
             <div class="form-group btn-group-align">
               <button (click)="addQuickPokemon()" [disabled]="myTeam().length >= 6" class="btn btn-primary">
@@ -161,7 +225,7 @@ export interface CounterTeamRead {
           <!-- Grid de Slots del Equipo -->
           <div class="team-grid">
             @for (slot of [0, 1, 2, 3, 4, 5]; track slot) {
-              @if (myTeam()[slot]; as p) {
+              @if (myTeam()[slot]; as member) {
                 <div class="team-slot filled">
                   <div class="flex-between" style="width: 100%;">
                     <span class="team-slot-number">Slot {{ slot + 1 }}</span>
@@ -169,24 +233,51 @@ export interface CounterTeamRead {
                       X
                     </button>
                   </div>
-                  @if (p.sprite_url) {
-                    <img [src]="p.sprite_url" [alt]="p.name" class="pokemon-slot-img" />
+                  @if (member.active.sprite_url) {
+                    <img [src]="member.active.sprite_url" [alt]="member.active.name" class="pokemon-slot-img" />
                   }
                   <div>
-                    <div class="team-member-name">#{{ p.id }} {{ capitalize(p.name) }}</div>
+                    <div class="team-member-name">
+                      #{{ member.base.id }} {{ capitalize(member.base.name) }}
+                    </div>
                     <div>
-                      <span class="type-badge" [class]="'type-' + p.type1.name.toLowerCase()">
-                        {{ capitalize(p.type1.name) }}
+                      <span class="type-badge" [class]="'type-' + member.active.type1.name.toLowerCase()">
+                        {{ capitalize(member.active.type1.name) }}
                       </span>
-                      @if (p.type2) {
-                        <span class="type-badge" [class]="'type-' + p.type2.name.toLowerCase()">
-                          {{ capitalize(p.type2.name) }}
+                      @if (member.active.type2) {
+                        <span class="type-badge" [class]="'type-' + member.active.type2.name.toLowerCase()">
+                          {{ capitalize(member.active.type2.name) }}
                         </span>
                       }
                     </div>
                   </div>
+
+                  <!-- Selector de forma: solo aparece si transformarse cambia algo -->
+                  @if (member.loadingForms) {
+                    <div class="form-picker-note">Buscando formas...</div>
+                  } @else if (member.forms.length > 0) {
+                    <select
+                      class="form-picker"
+                      [attr.aria-label]="'Forma de ' + member.base.name"
+                      [ngModel]="member.active.id"
+                      (ngModelChange)="selectForm(slot, $event)"
+                    >
+                      <option [ngValue]="member.base.id">Normal</option>
+                      @for (form of member.forms; track form.id) {
+                        <option [ngValue]="form.id">{{ form.label }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <div class="form-picker-note">Sin formas alternativas</div>
+                  }
+
                   <div class="text-muted" style="font-size: 0.75rem;">
-                    Stats: <strong>{{ p.stat_total }}</strong>
+                    Stats: <strong>{{ member.active.stat_total }}</strong>
+                    @if (statDelta(member); as delta) {
+                      <span class="stat-delta" [class.negative]="delta < 0">
+                        {{ delta > 0 ? '+' : '' }}{{ delta }}
+                      </span>
+                    }
                   </div>
                 </div>
               } @else {
@@ -595,7 +686,8 @@ export interface CounterTeamRead {
 export class App implements OnInit {
   private http = inject(HttpClient);
 
-  // Configuracion API
+  // Base de la API. Ya no se edita desde la cabecera: para apuntar a otro backend,
+  // se cambia aqui.
   apiUrl = 'http://localhost:8000/api/v1';
 
   // Pestana activa
@@ -641,12 +733,22 @@ export class App implements OnInit {
   topRanking = signal<TopPokemonRead[]>([]);
 
   // Team Builder & Counter Team
-  myTeam = signal<PokemonRead[]>([]);
+  myTeam = signal<TeamMember[]>([]);
   quickAddInput = '';
   excludeMyTeam = false;
   isGeneratingCounter = signal(false);
   teamError = signal<string | null>(null);
   counterResult = signal<CounterTeamRead | null>(null);
+
+  // Preselector del buscador
+  suggestions = signal<PokemonRead[]>([]);
+  showSuggestions = signal(false);
+  highlightedIndex = signal(-1);
+  isSearching = signal(false);
+  private searchTimer?: ReturnType<typeof setTimeout>;
+  // Cada peticion lleva un numero de orden: si una lenta contesta despues de otra
+  // mas reciente, se descarta en vez de pisar las sugerencias buenas.
+  private searchSeq = 0;
 
   ngOnInit(): void {
     this.checkHealth();
@@ -824,8 +926,9 @@ export class App implements OnInit {
 
   // --- LOGICA DE EQUIPO Y COUNTER TEAM ---
 
+  /** Se compara contra la especie: charizard y su mega son el mismo hueco. */
   isAlreadyInTeam(pokemonId: number): boolean {
-    return this.myTeam().some((p) => p.id === pokemonId);
+    return this.myTeam().some((member) => member.base.id === pokemonId);
   }
 
   addPokemonToTeam(pokemon: PokemonRead): void {
@@ -838,7 +941,51 @@ export class App implements OnInit {
       this.teamError.set(`'${this.capitalize(pokemon.name)}' ya se encuentra en el equipo.`);
       return;
     }
-    this.myTeam.update((team) => [...team, pokemon]);
+
+    this.myTeam.update((team) => [
+      ...team,
+      { base: pokemon, forms: [], active: pokemon, loadingForms: true },
+    ]);
+    // Las formas se piden aparte para que la tarjeta aparezca ya, sin esperar
+    this.loadFormsFor(pokemon.id);
+  }
+
+  /** Trae las formas de una especie y las cuelga de su hueco. */
+  private async loadFormsFor(baseId: number): Promise<void> {
+    let forms: PokemonFormRead[] = [];
+    try {
+      forms = await firstValueFrom(
+        this.http.get<PokemonFormRead[]>(`${this.cleanUrl()}/pokemon/${baseId}/forms`)
+      );
+    } catch (err) {
+      console.error('Error al cargar las formas:', err);
+    }
+
+    // El hueco puede haberse quitado mientras llegaba la respuesta
+    this.myTeam.update((team) =>
+      team.map((member) =>
+        member.base.id === baseId ? { ...member, forms, loadingForms: false } : member
+      )
+    );
+  }
+
+  /** Cambia la forma activa de un hueco. El id de la base significa "Normal". */
+  selectForm(index: number, formId: number): void {
+    this.teamError.set(null);
+    this.myTeam.update((team) =>
+      team.map((member, i) => {
+        if (i !== index) return member;
+        const chosen = member.forms.find((form) => form.id === formId);
+        return { ...member, active: chosen ?? member.base };
+      })
+    );
+    // El equipo ya no es el que produjo ese resultado
+    this.counterResult.set(null);
+  }
+
+  /** Cuanto suben o bajan los stats respecto de la forma normal. */
+  statDelta(member: TeamMember): number {
+    return member.active.stat_total - member.base.stat_total;
   }
 
   removePokemonFromTeam(index: number): void {
@@ -855,12 +1002,92 @@ export class App implements OnInit {
     this.teamError.set(null);
   }
 
+  // --- PRESELECTOR DEL BUSCADOR ---
+
+  onSearchInput(): void {
+    const term = this.quickAddInput.trim();
+    this.highlightedIndex.set(-1);
+    clearTimeout(this.searchTimer);
+
+    if (!term) {
+      this.searchSeq++; // invalida cualquier peticion en vuelo
+      this.suggestions.set([]);
+      this.showSuggestions.set(false);
+      this.isSearching.set(false);
+      return;
+    }
+
+    this.showSuggestions.set(true);
+    this.isSearching.set(true);
+    // Se espera a que deje de teclear: escribir "charizard" son 9 pulsaciones,
+    // pero solo una consulta.
+    this.searchTimer = setTimeout(() => this.fetchSuggestions(term), 200);
+  }
+
+  onSearchFocus(): void {
+    if (this.quickAddInput.trim() && this.suggestions().length > 0) {
+      this.showSuggestions.set(true);
+    }
+  }
+
+  private async fetchSuggestions(term: string): Promise<void> {
+    const seq = ++this.searchSeq;
+    const params = new HttpParams().set('q', term).set('limit', '8');
+
+    try {
+      const items = await firstValueFrom(
+        this.http.get<PokemonRead[]>(`${this.cleanUrl()}/pokemon/search`, { params })
+      );
+      if (seq !== this.searchSeq) return;
+      this.suggestions.set(items);
+    } catch {
+      if (seq !== this.searchSeq) return;
+      this.suggestions.set([]);
+    } finally {
+      if (seq === this.searchSeq) this.isSearching.set(false);
+    }
+  }
+
+  moveHighlight(delta: number): void {
+    const total = this.suggestions().length;
+    if (!this.showSuggestions() || total === 0) return;
+    // El modulo hace que la lista de vuelta al llegar a los extremos
+    this.highlightedIndex.update((current) => (current + delta + total) % total);
+  }
+
+  pickSuggestion(pokemon: PokemonRead): void {
+    this.addPokemonToTeam(pokemon);
+    this.quickAddInput = '';
+    this.suggestions.set([]);
+    this.closeSuggestions();
+  }
+
+  onSearchEnter(): void {
+    const items = this.suggestions();
+    const index = this.highlightedIndex();
+
+    if (this.showSuggestions() && index >= 0 && index < items.length) {
+      this.pickSuggestion(items[index]);
+      return;
+    }
+    // Sin sugerencia marcada, Enter sigue resolviendo el nombre o id exacto
+    this.addQuickPokemon();
+  }
+
+  closeSuggestions(): void {
+    clearTimeout(this.searchTimer);
+    this.showSuggestions.set(false);
+    this.highlightedIndex.set(-1);
+    this.isSearching.set(false);
+  }
+
   async addQuickPokemon(): Promise<void> {
     const input = this.quickAddInput.trim();
     if (!input) return;
 
     const base = this.cleanUrl();
     this.teamError.set(null);
+    this.closeSuggestions();
 
     try {
       const pokemon = await firstValueFrom(
@@ -868,6 +1095,7 @@ export class App implements OnInit {
       );
       this.addPokemonToTeam(pokemon);
       this.quickAddInput = '';
+      this.suggestions.set([]);
     } catch (err: any) {
       if (err.status === 404) {
         this.teamError.set(`No se encontro el Pokemon '${input}'. Verifica el nombre o numero.`);
@@ -883,7 +1111,17 @@ export class App implements OnInit {
     if (available.length === 0) return;
 
     const sample = available.slice(0, Math.min(4, available.length));
-    this.myTeam.set(sample);
+    this.myTeam.set(
+      sample.map((pokemon) => ({
+        base: pokemon,
+        forms: [],
+        active: pokemon,
+        loadingForms: true,
+      }))
+    );
+    for (const pokemon of sample) {
+      this.loadFormsFor(pokemon.id);
+    }
   }
 
   async generateCounterTeam(): Promise<void> {
@@ -900,7 +1138,8 @@ export class App implements OnInit {
     try {
       let params = new HttpParams();
       for (const member of team) {
-        params = params.append('team', member.id.toString());
+        // Se manda la forma puesta: el backend la resuelve por su id igual que una especie
+        params = params.append('team', member.active.id.toString());
       }
       if (this.excludeMyTeam) {
         params = params.set('exclude_team', 'true');

@@ -14,8 +14,12 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InsufficientDataError, NotFoundError
-from app.models import Pokemon
-from app.repositories.pokemon import PokemonRepository, TypeRepository
+from app.models import Pokemon, PokemonForm
+from app.repositories.pokemon import (
+    PokemonFormRepository,
+    PokemonRepository,
+    TypeRepository,
+)
 from app.schemas.pokemon import (
     CounterPickRead,
     CounterTeamRead,
@@ -39,10 +43,20 @@ from app.services.algorithms import (
 # (ranking, percentil, contraequipo). Con la Pokedex completa son 1025.
 _MAX_SCAN = 10_000
 
+# Un pokemon del equipo rival puede ser una especie o una de sus formas. Las dos traen
+# los mismos atributos de combate, asi que los algoritmos y los schemas no distinguen.
+Fighter = Pokemon | PokemonForm
+
+
+def species_id(fighter: Fighter) -> int:
+    """Numero de Pokedex de la especie: el de una forma es el de su base."""
+    return fighter.pokemon_id if isinstance(fighter, PokemonForm) else fighter.id
+
 
 class PokemonService:
     def __init__(self, session: AsyncSession) -> None:
         self.repo = PokemonRepository(session)
+        self.forms_repo = PokemonFormRepository(session)
         self.types = TypeRepository(session)
 
     async def get(self, pokemon_id: int) -> Pokemon:
@@ -85,6 +99,22 @@ class PokemonService:
             for generation in GENERATIONS
         ]
 
+    async def search(self, query: str, *, limit: int = 10) -> Sequence[Pokemon]:
+        """Sugerencias mientras se escribe: por numero exacto o por nombre parecido.
+
+        Un termino numerico es un numero de Pokedex, no un trozo de nombre, asi que
+        se resuelve como tal en vez de buscar digitos dentro de los nombres.
+        """
+        query = query.strip().lower()
+        if not query:
+            return []
+
+        if query.isdigit():
+            pokemon = await self.repo.get(int(query))
+            return [pokemon] if pokemon is not None else []
+
+        return await self.repo.search_by_name(query, limit=limit)
+
     async def list_by_type(self, type_name: str, limit: int = 50) -> Sequence[Pokemon]:
         if await self.types.get_by_name(type_name) is None:
             raise NotFoundError(f"No existe el tipo '{type_name}'")
@@ -110,18 +140,45 @@ class PokemonService:
         items = await self.repo.list(limit=_MAX_SCAN)
         return percentile([self.power_score(item) for item in items], self.power_score(pokemon))
 
-    async def resolve(self, reference: str) -> Pokemon:
-        """Busca un pokemon por numero de Pokedex o por nombre, indistintamente."""
+    async def resolve(self, reference: str) -> Fighter:
+        """Busca por numero o por nombre, y acepta tanto una especie como una forma.
+
+        Se mira primero en `pokemon`: los numeros de la Pokedex y los nombres de
+        especie son lo habitual, y una forma solo se pide cuando alguien la elige
+        expresamente en su tarjeta ('charizard-mega-x' o su id 10034).
+        """
         reference = reference.strip()
+
         if reference.isdigit():
-            return await self.get(int(reference))
+            number = int(reference)
+            pokemon = await self.repo.get(number)
+            if pokemon is not None:
+                return pokemon
 
-        pokemon = await self.repo.get_by_name(reference.lower())
-        if pokemon is None:
-            raise NotFoundError(f"No existe el pokemon '{reference}'")
-        return pokemon
+            form = await self.forms_repo.get(number)
+            if form is not None:
+                return form
+            raise NotFoundError(f"No existe el pokemon con id {number}")
 
-    def _contender(self, pokemon: Pokemon) -> Contender:
+        name = reference.lower()
+        pokemon = await self.repo.get_by_name(name)
+        if pokemon is not None:
+            return pokemon
+
+        form = await self.forms_repo.get_by_name(name)
+        if form is not None:
+            return form
+        raise NotFoundError(f"No existe el pokemon '{reference}'")
+
+    async def forms(self, reference: str) -> Sequence[PokemonForm]:
+        """Formas de una especie. Acepta la especie o cualquiera de sus formas.
+
+        Solo estan cargadas las que cambian tipos o stats, asi que una lista vacia
+        significa que a ese pokemon no le cambia nada transformarse.
+        """
+        return await self.forms_repo.list_for(species_id(await self.resolve(reference)))
+
+    def _contender(self, pokemon: Fighter) -> Contender:
         """Lo reduce a lo que el emparejamiento necesita: sus tipos y su potencia."""
         type_ids = (pokemon.type1_id, pokemon.type2_id) if pokemon.type2_id else (pokemon.type1_id,)
         return Contender(
@@ -144,9 +201,13 @@ class PokemonService:
         """
         team = [await self.resolve(reference) for reference in references]
 
+        # Los candidatos son siempre especies base: una forma sirve para armar el
+        # equipo rival, pero el generador no propone megas como contras.
         candidates = list(await self.repo.list(limit=_MAX_SCAN))
         if exclude_team:
-            on_team = {pokemon.id for pokemon in team}
+            # Se excluye por especie: elegir Mega Charizard X descarta tambien al
+            # Charizard de siempre, que es el mismo bicho con otra chaqueta.
+            on_team = {species_id(fighter) for fighter in team}
             candidates = [pokemon for pokemon in candidates if pokemon.id not in on_team]
 
         matrix = await self.types.effectiveness_matrix()

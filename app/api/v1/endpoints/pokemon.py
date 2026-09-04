@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import PaginationDep, PokemonServiceDep
 from app.schemas.common import ErrorResponse, Page
-from app.schemas.pokemon import MatchupRead, PokemonRead
+from app.schemas.pokemon import MatchupRead, PokemonFormRead, PokemonRead
 
 router = APIRouter()
 
@@ -35,6 +35,23 @@ async def list_pokemon(
         limit=pagination.limit,
         offset=pagination.offset,
     )
+
+
+@router.get(
+    "/search",
+    response_model=list[PokemonRead],
+    summary="Sugerencias por nombre parecido o por numero de Pokedex",
+)
+async def search_pokemon(
+    service: PokemonServiceDep,
+    q: Annotated[
+        str,
+        Query(min_length=1, max_length=50, description="Parte del nombre, o el numero exacto"),
+    ],
+    limit: Annotated[int, Query(ge=1, le=25, description="Cuantas sugerencias devolver")] = 10,
+) -> list[PokemonRead]:
+    """Alimenta el buscador incremental del frontend. Lista vacia si no hay parecidos."""
+    return [PokemonRead.model_validate(item) for item in await service.search(q, limit=limit)]
 
 
 @router.get(
@@ -69,6 +86,21 @@ async def pokemon_by_type(
 )
 async def get_pokemon(identifier: str, service: PokemonServiceDep) -> PokemonRead:
     return PokemonRead.model_validate(await service.resolve(identifier))
+
+
+@router.get(
+    "/{identifier}/forms",
+    response_model=list[PokemonFormRead],
+    responses=_NOT_FOUND,
+    summary="Formas alternativas que cambian tipos o stats",
+)
+async def list_forms(identifier: str, service: PokemonServiceDep) -> list[PokemonFormRead]:
+    """Megas, primal, regionales y variantes con stats propios.
+
+    Lista vacia si transformarse no le cambia nada: las gigantamax y los disfraces
+    no se guardan porque dejan tipos y stats intactos.
+    """
+    return [PokemonFormRead.model_validate(form) for form in await service.forms(identifier)]
 
 
 @router.get(

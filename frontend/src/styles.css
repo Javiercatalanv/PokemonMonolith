@@ -31,6 +31,15 @@ body {
   flex-direction: column;
 }
 
+/* El componente raiz es el unico hijo de body, asi que la columna que empuja el
+   footer al fondo tiene que estar aqui: header, main y footer cuelgan de app-root. */
+app-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -47,10 +56,10 @@ body {
 
 .header-content {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  text-align: center;
+  gap: 0.15rem;
 }
 
 h1 {
@@ -62,25 +71,6 @@ h1 {
 .subtitle {
   font-size: 0.85rem;
   color: var(--text-muted);
-}
-
-.api-config {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.api-config label {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.api-config input {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  width: 240px;
 }
 
 /* Main Layout */
@@ -204,11 +194,21 @@ h1 {
   border-radius: var(--border-radius);
 }
 
+/* Los 6 huecos, siempre en una sola fila: un equipo se lee de un vistazo.
+   El minmax(0, ...) deja que la columna encoja por debajo de su contenido, que es
+   lo que impide que el sexto salte de linea cuando la tarjeta trae sprite y select. */
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+/* En pantallas estrechas seis columnas dejarian las tarjetas ilegibles */
+@media (max-width: 760px) {
+  .team-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .team-slot {
@@ -674,4 +674,119 @@ select:focus, input:focus {
   padding: 1rem 0;
   font-size: 0.8rem;
   color: var(--text-muted);
+  text-align: center;
+}
+
+/* Preselector del buscador de Pokemon */
+.typeahead {
+  position: relative;
+}
+
+.typeahead input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.typeahead-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 17rem;
+  overflow-y: auto;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 20px -6px rgb(0 0 0 / 0.18);
+}
+
+.typeahead-option {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  grid-template-areas: "img name id" "img types id";
+  align-items: center;
+  column-gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.typeahead-option.highlighted {
+  background: #eff6ff;
+}
+
+/* Ya esta en el equipo: se muestra, pero se ve que no aporta volver a elegirlo */
+.typeahead-option.disabled {
+  opacity: 0.55;
+}
+
+.typeahead-img {
+  grid-area: img;
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.typeahead-name {
+  grid-area: name;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.typeahead-types {
+  grid-area: types;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.typeahead-id {
+  grid-area: id;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.typeahead-empty {
+  padding: 0.5rem 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Selector de forma dentro de la tarjeta del equipo */
+.form-picker {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text-main);
+}
+
+.form-picker-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Cuanto suben o bajan los stats respecto de la forma normal */
+.stat-delta {
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--success);
+}
+
+.stat-delta.negative {
+  background: var(--danger);
 }
