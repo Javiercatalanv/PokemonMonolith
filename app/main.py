@@ -15,6 +15,41 @@ from app.core.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
+API_DESCRIPTION = """
+API de solo lectura sobre los datos de la [PokeAPI](https://pokeapi.co) que carga el
+seeder en PostgreSQL. La API nunca sale a internet: si falta algo, hay que volver a
+pasar el seeder.
+
+**Identificadores.** Donde se pide un `identifier` vale el numero de Pokedex, el id de
+una forma alternativa (10001+) o el nombre, sin distinguir mayusculas.
+
+**Errores.** Todas las respuestas de error comparten el formato `ErrorResponse`:
+
+```json
+{"error": {"code": "not_found", "message": "No existe el pokemon 'missingno'", "details": {}}}
+```
+
+| HTTP | `code` | Cuando |
+|---|---|---|
+| 404 | `not_found` | El pokemon, la forma o el tipo no existe |
+| 409 | `insufficient_data` | La peticion es valida, pero no hay bastantes pokemon cargados |
+| 422 | `validation_error` | Parametros invalidos; `details.fields` dice cuales |
+| 500 | `internal_error` | Error inesperado |
+
+**Cabeceras.** Cada respuesta trae `X-Request-ID` (se reutiliza el de la peticion si
+viene) y `X-Process-Time-Ms`.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Sondas de liveness y readiness para orquestadores."},
+    {"name": "pokemon", "description": "Catalogo, busqueda, ranking, formas y efectividad."},
+    {"name": "generations", "description": "Catalogo de generaciones para el selector."},
+    {
+        "name": "team",
+        "description": "Generador de contraequipos a partir de la efectividad de tipos.",
+    },
+]
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
@@ -31,6 +66,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version="0.1.0",
+        summary="Datos de la PokeAPI servidos desde PostgreSQL, con algoritmos de tipos y stats.",
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
         debug=settings.DEBUG,
         lifespan=lifespan,
         docs_url=None if settings.is_production else "/docs",

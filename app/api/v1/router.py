@@ -2,10 +2,13 @@
 
 from fastapi import APIRouter
 
+from app.api.responses import INTERNAL_ERROR, VALIDATION_ERROR
 from app.api.v1.endpoints import generations, health, pokemon, team
 
-api_router = APIRouter()
+api_router = APIRouter(responses=INTERNAL_ERROR)
 api_router.include_router(health.router, tags=["health"])
-api_router.include_router(pokemon.router, prefix="/pokemon", tags=["pokemon"])
+api_router.include_router(
+    pokemon.router, prefix="/pokemon", tags=["pokemon"], responses=VALIDATION_ERROR
+)
 api_router.include_router(generations.router, prefix="/generations", tags=["generations"])
-api_router.include_router(team.router, prefix="/team", tags=["team"])
+api_router.include_router(team.router, prefix="/team", tags=["team"], responses=VALIDATION_ERROR)

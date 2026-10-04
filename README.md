@@ -155,7 +155,35 @@ Detalles:
 .venv/bin/uvicorn app.main:app --reload
 ```
 
-Documentación interactiva en http://localhost:8000/docs
+### Documentación (Swagger / OpenAPI)
+
+FastAPI genera la especificación OpenAPI 3.1 a partir del código, así que nunca se
+desincroniza de los endpoints:
+
+| URL | Qué es |
+|---|---|
+| http://localhost:8000/docs | **Swagger UI**: probar cada endpoint desde el navegador |
+| http://localhost:8000/redoc | ReDoc: la misma especificación, en formato de lectura |
+| http://localhost:8000/openapi.json | La especificación en bruto, para Postman o generadores de clientes |
+
+Con `ENVIRONMENT=production` las tres rutas se desactivan.
+
+De dónde sale cada parte:
+
+- **Descripción general y tags**: `API_DESCRIPTION` y `OPENAPI_TAGS` en `app/main.py`.
+- **Endpoints**: `summary` en el decorador y el docstring de la función como descripción.
+- **Modelos de respuesta**: los schemas de `app/schemas/`, con `Field(description=..., examples=...)`.
+- **Errores**: `app/api/responses.py` declara el 422 y el 500 con `ErrorResponse`, el formato
+  real que devuelven los handlers, en vez del `HTTPValidationError` por defecto de FastAPI.
+
+`tests/api/test_openapi.py` falla si un endpoint nuevo no tiene `summary`, schema de respuesta
+o descripción en sus parámetros, o si algún error no usa `ErrorResponse`.
+
+Para exportar la especificación a un archivo:
+
+```bash
+.venv/bin/python -c "import json; from app.main import app; print(json.dumps(app.openapi(), indent=2))" > openapi.json
+```
 
 ## Endpoints
 
