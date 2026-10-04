@@ -67,22 +67,23 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
-### 1. Base de datos
+### 1. Entorno Docker (Base de Datos + Backend Dockerizado)
 
-PostgreSQL vive en un contenedor; la API y el seeder corren en tu maquina y se
-conectan por `localhost`.
+El proyecto cuenta con dockerización completa tanto para PostgreSQL como para el Backend FastAPI:
 
 ```bash
-docker compose up -d          # levantar
-docker compose ps             # ver el estado
-docker compose logs -f db     # ver los logs
-docker compose down           # parar, conservando los datos
-docker compose down -v        # parar y BORRAR los datos
+docker compose up -d          # Levanta la base de datos (puerto 5435) y el backend (puerto 8000)
+docker compose ps             # Ver el estado de los contenedores
+docker compose logs -f        # Ver los logs en tiempo real
+docker compose down           # Parar conservando los datos del volumen
+docker compose down -v        # Parar y BORRAR los datos
 ```
 
-El contenedor publica el **puerto 5435** del host (el 5432 y los siguientes suelen
-estar ocupados por otros proyectos). Dentro del contenedor sigue siendo el 5432.
-Si quieres otro, cambia `POSTGRES_PORT` en tu `.env` y afecta a las dos cosas a la vez.
+Si prefieres correr el backend en tu máquina local para desarrollo rápido:
+```bash
+docker compose up -d db       # Levanta solo PostgreSQL
+.venv/bin/uvicorn app.main:app --reload  # Se conecta a localhost:5435
+```
 
 Los datos viven en el volumen `pokemon_postgres_data`, asi que sobreviven a un
 `docker compose down`. Solo `-v` los borra.
@@ -281,14 +282,23 @@ Todo sale de `.env` (ver `.env.example`). El seeder es síncrono (`psycopg2`) y 
 asíncrona (`asyncpg`); defines **un solo** DSN con `+asyncpg` y `Settings.sync_dsn`
 lo convierte para el seeder.
 
-## Tests
-
+## Tests y Cobertura (Min 60%)
+ 
 ```bash
-.venv/bin/pytest
+.venv/bin/pytest                                                    # Ejecutar tests
+.venv/bin/pytest --cov=app --cov=seeder --cov-report=term-missing   # Con reporte de cobertura
 ```
 
 No necesitan PostgreSQL ni salir a internet: SQLite en memoria con un dataset mínimo, y
-el parseo de la PokéAPI se prueba con payloads de ejemplo.
+el parseo de la PokéAPI se prueba con payloads de ejemplo. El proyecto supera el 60% de cobertura exigido en la pauta.
+
+## Integración Continua (CI/CD con GitHub Actions)
+
+El proyecto cuenta con un pipeline configurado en `.github/workflows/ci.yml` que en cada `push` y `pull_request`:
+1. Ejecuta el linter estricto con `ruff`.
+2. Corre la suite de tests automáticos verificando que la cobertura supere el 60% (`--cov-fail-under=60`).
+3. Valida la construcción de la imagen Docker del backend (`Dockerfile`).
+4. Valida la compilación en producción del frontend Angular (`npm run build`).
 
 ## Nota sobre migraciones
 
