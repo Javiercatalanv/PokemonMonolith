@@ -87,7 +87,7 @@ export interface CounterTeamRead {
   template: `
     <header class="header">
       <div class="container header-content">
-        <h1>Generador de Counter Team</h1>
+        <h1>Counter Pokemon</h1>
       </div>
     </header>
 
