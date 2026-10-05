@@ -118,13 +118,6 @@ export interface CounterTeamRead {
         >
           Generador de Counter Team
         </button>
-        <button
-          class="tab-btn"
-          [class.active]="activeTab() === 'catalog'"
-          (click)="activeTab.set('catalog')"
-        >
-          Catalogo y Analisis Individual
-        </button>
       </nav>
 
       <!-- VISTA 1: GENERADOR DE EQUIPO COUNTER -->
