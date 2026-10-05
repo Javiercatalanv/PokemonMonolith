@@ -13,6 +13,9 @@ from app.services.algorithms import (
     compute_power_score,
     effectiveness_label,
     generation_range,
+    is_legendary,
+    is_mythical,
+    is_special_pokemon,
     percentile,
     rank_by_score,
     type_advantage,
@@ -215,3 +218,29 @@ def test_assign_counters_needs_one_candidate_per_member() -> None:
 
 def test_empty_team_returns_nothing() -> None:
     assert assign_counters(MATRIX, [], [_unit("golem", GROUND)]) == []
+
+
+def test_special_pokemon_classification() -> None:
+    # Legendarios conocidos
+    assert is_legendary(144)  # Articuno
+    assert is_legendary(145)  # Zapdos
+    assert is_legendary(146)  # Moltres
+    assert is_legendary(150)  # Mewtwo
+    assert is_legendary(384)  # Rayquaza
+    assert not is_legendary(1)  # Bulbasaur
+    assert not is_legendary(25)  # Pikachu
+    assert not is_legendary(151)  # Mew es singular, no legendario
+
+    # Singulares (miticos) conocidos
+    assert is_mythical(151)  # Mew
+    assert is_mythical(251)  # Celebi
+    assert is_mythical(385)  # Jirachi
+    assert not is_mythical(150)  # Mewtwo es legendario, no singular
+    assert not is_mythical(4)  # Charmander
+
+    # Conjunto combinado (especiales)
+    assert is_special_pokemon(150)
+    assert is_special_pokemon(151)
+    assert is_special_pokemon(1025)  # Pecharunt
+    assert not is_special_pokemon(6)  # Charizard
+    assert not is_special_pokemon(9)  # Blastoise

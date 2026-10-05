@@ -5,6 +5,9 @@ pequenos; el emparejamiento en si se prueba a fondo en `tests/test_algorithms.py
 """
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Pokemon
 
 
 async def test_counters_one_pick_per_member(client: AsyncClient) -> None:
@@ -72,3 +75,35 @@ async def test_not_enough_pokemon_loaded_is_a_409(client: AsyncClient) -> None:
     response = await client.get("/team/counters", params={"team": team})
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "insufficient_data"
+
+
+async def test_exclude_legendaries_keeps_legendaries_out(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Moltres (146, fuego) tiene mas stats que charmander y seria el contra ideal de bulbasaur."""
+    moltres = Pokemon(
+        id=146,
+        name="moltres",
+        type1_id=10,  # fuego
+        type2_id=None,
+        hp=90,
+        attack=100,
+        defense=90,
+        sp_attack=125,
+        sp_defense=85,
+        speed=90,
+    )
+    session.add(moltres)
+    await session.commit()
+
+    # Sin excluir legendarios, Moltres gana por stats frente a Charmander
+    included = (await client.get("/team/counters", params={"team": "bulbasaur"})).json()
+    assert included["picks"][0]["counter"]["name"] == "moltres"
+
+    # Con exclude_legendaries=true, Moltres queda descartado y se propone Charmander
+    excluded = (
+        await client.get(
+            "/team/counters", params={"team": "bulbasaur", "exclude_legendaries": "true"}
+        )
+    ).json()
+    assert excluded["picks"][0]["counter"]["name"] == "charmander"

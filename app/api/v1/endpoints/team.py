@@ -42,6 +42,12 @@ async def counter_team(
         bool,
         Query(description="Impedir que se proponga a un miembro del propio equipo"),
     ] = False,
+    exclude_legendaries: Annotated[
+        bool,
+        Query(
+            description="Impedir que se propongan pokemon legendarios o singulares como contras"
+        ),
+    ] = False,
 ) -> CounterTeamRead:
     """Devuelve un contra distinto para cada miembro, mirando solo los tipos.
 
@@ -53,4 +59,8 @@ async def counter_team(
     Los miembros pueden ser formas (`charizard-mega-x`), pero los contras propuestos son
     siempre especies base.
     """
-    return await service.counter_team(team, exclude_team=exclude_team)
+    return await service.counter_team(
+        team,
+        exclude_team=exclude_team,
+        exclude_legendaries=exclude_legendaries,
+    )

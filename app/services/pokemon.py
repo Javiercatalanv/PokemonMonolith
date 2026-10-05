@@ -35,6 +35,7 @@ from app.services.algorithms import (
     compute_power_score,
     effectiveness_label,
     generation_range,
+    is_special_pokemon,
     percentile,
     rank_by_score,
 )
@@ -193,6 +194,7 @@ class PokemonService:
         references: Sequence[str],
         *,
         exclude_team: bool = False,
+        exclude_legendaries: bool = False,
     ) -> CounterTeamRead:
         """Un equipo que bate al enviado, emparejando cada rival con su propio contra.
 
@@ -209,6 +211,10 @@ class PokemonService:
             # Charizard de siempre, que es el mismo bicho con otra chaqueta.
             on_team = {species_id(fighter) for fighter in team}
             candidates = [pokemon for pokemon in candidates if pokemon.id not in on_team]
+
+        if exclude_legendaries:
+            # Se descartan pokemon legendarios y singulares (miticos)
+            candidates = [pokemon for pokemon in candidates if not is_special_pokemon(pokemon.id)]
 
         matrix = await self.types.effectiveness_matrix()
         try:

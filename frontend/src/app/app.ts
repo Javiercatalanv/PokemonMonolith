@@ -87,8 +87,7 @@ export interface CounterTeamRead {
   template: `
     <header class="header">
       <div class="container header-content">
-        <h1>Pokemon Monolith - Generador de Counter Team</h1>
-        <p class="subtitle">Interfaz Angular para analisis de tipos y generacion de equipos counter</p>
+        <h1>Generador de Counter Team</h1>
       </div>
     </header>
 
@@ -126,8 +125,7 @@ export interface CounterTeamRead {
           <div class="card-header">
             <h2>Constructor de Equipo Rival (1 a 6 Pokemon)</h2>
             <p class="card-description">
-              Ingresa los Pokemon de tu equipo o del rival. El backend analizara la matriz de tipos de 18x18
-              y generara el equipo optimo que maximice la ventaja neta.
+              Ingresa los Pokemon de tu equipo o del rival.
             </p>
           </div>
 
@@ -284,10 +282,14 @@ export interface CounterTeamRead {
 
           <!-- Barra de Acciones del Equipo -->
           <div class="team-actions-bar">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="excludeMyTeam" />
                 Excluir a los miembros de este equipo como candidatos counter
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="excludeLegendaries" />
+                Excluir Pokemon legendarios y singulares como candidatos counter
               </label>
             </div>
             <div style="display: flex; gap: 0.5rem;">
@@ -315,9 +317,6 @@ export interface CounterTeamRead {
               <div class="card-header flex-between" style="margin-top: 1.5rem;">
                 <div>
                   <h2>Equipo Counter Generado</h2>
-                  <p class="card-description">
-                    Emparejamiento exacto resuelto mediante Programacion Dinamica global sobre la matriz de tipos.
-                  </p>
                 </div>
                 <div>
                   <span class="badge badge-success" style="font-size: 0.95rem; padding: 0.4rem 0.8rem;">
@@ -671,7 +670,7 @@ export interface CounterTeamRead {
 
     <footer class="footer">
       <div class="container text-center">
-        <p>NewMonolioPokemon - Frontend en Angular con Generador de Counter Team</p>
+        <p>Generador de Counter Team</p>
       </div>
     </footer>
   `,
@@ -729,6 +728,7 @@ export class App implements OnInit {
   myTeam = signal<TeamMember[]>([]);
   quickAddInput = '';
   excludeMyTeam = false;
+  excludeLegendaries = false;
   isGeneratingCounter = signal(false);
   teamError = signal<string | null>(null);
   counterResult = signal<CounterTeamRead | null>(null);
@@ -1136,6 +1136,9 @@ export class App implements OnInit {
       }
       if (this.excludeMyTeam) {
         params = params.set('exclude_team', 'true');
+      }
+      if (this.excludeLegendaries) {
+        params = params.set('exclude_legendaries', 'true');
       }
 
       const result = await firstValueFrom(

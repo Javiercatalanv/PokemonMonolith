@@ -217,6 +217,7 @@ curl "localhost:8000/api/v1/team/counters?team=venusaur&team=blastoise&team=char
 
 Cada miembro se acepta por **nombre o por número de Pokédex**, indistintamente. Con
 `&exclude_team=true` se impide que la propuesta incluya a alguien de tu propio equipo.
+Con `&exclude_legendaries=true` se impide que la propuesta incluya Pokémon legendarios o singulares (míticos).
 
 ```json
 {"total_advantage": 14,

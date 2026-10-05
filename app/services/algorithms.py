@@ -48,6 +48,101 @@ def generation_range(number: int) -> tuple[int, int]:
     raise ValueError(f"No existe la generacion {number}")
 
 
+# Conjunto canonico de IDs de Pokemon Legendarios (Gen 1 a Gen 9)
+LEGENDARY_IDS: frozenset[int] = frozenset(
+    {
+        # Gen 1 (Kanto)
+        144, 145, 146, 150,
+        # Gen 2 (Johto)
+        243, 244, 245, 249, 250,
+        # Gen 3 (Hoenn)
+        377, 378, 379, 380, 381, 382, 383, 384,
+        # Gen 4 (Sinnoh)
+        480, 481, 482, 483, 484, 485, 486, 487, 488,
+        # Gen 5 (Unova)
+        638, 639, 640, 641, 642, 643, 644, 645, 646,
+        # Gen 6 (Kalos)
+        716, 717, 718,
+        # Gen 7 (Alola)
+        772, 773, 785, 786, 787, 788, 789, 790, 791, 792, 800,
+        # Gen 8 (Galar)
+        888, 889, 890, 891, 892, 894, 895, 896, 897, 898, 905,
+        # Gen 9 (Paldea)
+        1001, 1002, 1003, 1004, 1007, 1008, 1014, 1015, 1016, 1017, 1024,
+    }
+)
+
+# Conjunto canonico de IDs de Pokemon Singulares / Miticos (Gen 1 a Gen 9)
+MYTHICAL_IDS: frozenset[int] = frozenset(
+    {
+        # Gen 1 (Kanto)
+        151,
+        # Gen 2 (Johto)
+        251,
+        # Gen 3 (Hoenn)
+        385, 386,
+        # Gen 4 (Sinnoh)
+        489, 490, 491, 492, 493,
+        # Gen 5 (Unova)
+        494, 647, 648, 649,
+        # Gen 6 (Kalos)
+        719, 720, 721,
+        # Gen 7 (Alola)
+        801, 802, 807, 808, 809,
+        # Gen 8 (Galar)
+        893,
+        # Gen 9 (Paldea)
+        1025,
+    }
+)
+
+# Conjunto canonico de Ultraentes (Ultra Beasts - Gen 7)
+ULTRA_BEAST_IDS: frozenset[int] = frozenset(
+    {
+        793,  # Nihilego
+        794,  # Buzzwole
+        795,  # Pheromosa
+        796,  # Xurkitree
+        797,  # Celesteela
+        798,  # Kartana
+        799,  # Guzzlord
+        803,  # Poipole
+        804,  # Naganadel
+        805,  # Stakataka
+        806,  # Blacephalon
+    }
+)
+
+# Conjunto canonico de Pokemon Paradoja (Paradox Pokemon - Gen 9)
+PARADOX_IDS: frozenset[int] = frozenset(
+    {
+        984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995,
+        1005, 1006,
+        1009, 1010, 1020, 1021, 1022, 1023,
+    }
+)
+
+# Pokemon especiales no estandar: Legendarios + Singulares + Ultraentes + Paradoja
+SPECIAL_POKEMON_IDS: frozenset[int] = (
+    LEGENDARY_IDS | MYTHICAL_IDS | ULTRA_BEAST_IDS | PARADOX_IDS
+)
+
+
+def is_legendary(pokemon_id: int) -> bool:
+    """Indica si el id corresponde a un pokemon legendario canonico o ultraente."""
+    return pokemon_id in LEGENDARY_IDS or pokemon_id in ULTRA_BEAST_IDS
+
+
+def is_mythical(pokemon_id: int) -> bool:
+    """Indica si el id corresponde a un pokemon singular (mitico)."""
+    return pokemon_id in MYTHICAL_IDS
+
+
+def is_special_pokemon(pokemon_id: int) -> bool:
+    """Indica si el id corresponde a un pokemon legendario, singular, ultraente o paradoja."""
+    return pokemon_id in SPECIAL_POKEMON_IDS
+
+
 # Peso de cada stat en la puntuacion combinada. Ajusta a tu criterio.
 _WEIGHTS = {
     "hp": 0.20,
